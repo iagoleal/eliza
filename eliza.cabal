@@ -1,0 +1,21 @@
+name:                eliza
+version:             0.1.0.0
+-- synopsis:
+-- description:
+homepage:            https://github.com/iagoleal/eliza#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Iago Leal de Freitas
+maintainer:          hello@iagoleal.com
+copyright:           2021 Iago Leal de Freitas
+category:            Bot
+build-type:          Simple
+cabal-version:       >=1.10
+extra-source-files:  README.md
+
+executable eliza
+  hs-source-dirs:      src
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  build-depends:       base >= 4.7 && < 5,
+                       text >= 1.2.4 && < 2
