@@ -20,3 +20,4 @@ executable eliza
   build-depends:       base >= 4.7 && < 5,
                        text >= 1.2.4 && < 2,
                        containers >= 0.6.2.1 && < 1
+  default-extensions: OverloadedStrings
