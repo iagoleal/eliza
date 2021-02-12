@@ -6,15 +6,21 @@ import qualified Data.Map.Strict as M
 import qualified Data.Sequence   as S
 import           Data.List       (find)
 import           Data.Foldable   (toList)
+import           Data.Bifunctor
 
 type Token = T.Text
 
-data DecompRule = Rule T.Text [T.Text]
+type DecompRule = [MatchingRule]
+type RecompRule = [MatchingRule]
+type Rule = (DecompRule, [RecompRule])
+data MatchingRule = MatchAll
+                  | MatchWord Token
+                  | MatchN Int
   deriving Show
 
 data Keyword = Keyword { kwToken :: Token
                        , kwPrecedence :: Int
-                       , kwRules :: [DecompRule]
+                       , kwRules :: [Rule]
                        }
   deriving Show
 
@@ -70,7 +76,42 @@ scanKeywords l = toList $ loop l S.Empty (-1)
 
 
 match :: [Keyword] -> [Token] -> T.Text
-match = undefined
+match [] s = defaultScript
+match (k:ks) s = case matchRules (kwRules k) s of
+  Nothing -> match ks s
+  Just response  -> response
+
+matchRules :: [Rule] -> [Token] -> Maybe T.Text
+matchRules [] _ = Nothing
+matchRules (r:rs) s =  case decompose dRule s of
+  Nothing -> matchRules rs s
+  Just x  -> Just (recompose rRule s)
+ where (dRule, rRule) = second head r
+
+
+decompose :: DecompRule -> [Token] -> Maybe [Token]
+decompose d ts = decompose' d ts []
+  where
+   decompose' [] [] res = Just res
+   decompose' [] (x:xs) _ = Nothing
+   decompose' (r:rs) [] res = Just res
+   decompose' (r:rs) t@(x:xs) res = case r of
+     MatchWord w -> if w == x
+                     then decompose' rs xs (res ++ [x])
+                     else Nothing
+     MatchN n    -> if length t >= n
+                     then let (a, b) = splitAt n t
+                          in decompose' rs b (res ++ a)
+                     else Nothing
+     MatchAll    -> if null rs
+                     then Just (res ++ t)
+                     else undefined
+
+recompose :: RecompRule -> [Token] -> T.Text
+recompose = undefined
+
+defaultScript :: T.Text
+defaultScript = "How do you feel about that?"
 
 eliza :: T.Text -> T.Text
 eliza input =
