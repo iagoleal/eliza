@@ -2,13 +2,12 @@
 module Main where
 
 import qualified Data.Text       as T
-import           Data.Text (Text)
-
 import qualified Data.Map.Strict as M
 import qualified Data.Sequence   as S
 
-import           Data.List       (find)
+import           Data.List       (unfoldr, find)
 import           Data.Foldable   (toList)
+import           Data.Bifunctor
 import           Data.Void       (Void)
 
 import           Text.Megaparsec
@@ -23,6 +22,9 @@ data MatchingRule = MatchAll
   deriving Show
 
 type Rule = (Parser [T.Text], [ReassemblyRule])
+
+getDecompRule = fst
+getRecompRules = snd
 type ReassemblyRule = [MatchingRule]
 data Keyword = Keyword { kwWord :: T.Text
                        , kwPrecedence :: Int
@@ -59,15 +61,11 @@ myScript = Script
    ["How do you feel about that?"]
    ["Hello, I'm Eliza, your new therapist. How are you feeling today?"]
 
-reflect script input =
-  let wds = words input
-  in undefined
 
+-- Find Keywords
 scanKeywords :: Script -> T.Text -> ([T.Text], [Keyword])
 scanKeywords script input = let
-  slices = case parseMaybe phrasesParser input of
-    Nothing -> error "Error parsing input"
-    Just x  -> x
+  slices = parseReport phrasesParser "Error scanning keywords" input
   in foldr (analyzeKeywords script) ([], []) slices
   where
    analyzeKeywords script phrase remainder =
@@ -86,30 +84,68 @@ scanKwChunk script ws = toList $ loop ws S.Empty (-1)
                    then loop ws (kw S.:<| stack) (kwPrecedence kw)
                    else loop ws (stack S.:|> kw) p
 
+-- Pattern match response
+disassemble :: Parser [T.Text] -> T.Text -> Maybe [T.Text]
+disassemble p input = parseMaybe p input
+
+reassemble :: ReassemblyRule -> [T.Text] -> T.Text
+reassemble rule ts = T.unwords $ fmap (assembler ts) rule
+  where
+   assembler _  (MatchText t) = t
+   assembler ws (MatchN n)    = ws !! (n-1)
+   assembler ws (MatchAll)    = T.unwords ws
+
+keywordsMatcher :: Script -> [Keyword] -> T.Text -> T.Text
+keywordsMatcher script [] input = pickAny (greetings script)
+keywordsMatcher script (k:ks) input =
+  case tryDecompRules (kwRules k) input of
+    Nothing -> keywordsMatcher script ks input
+    Just output -> output
+
+tryDecompRules :: [Rule] -> T.Text -> Maybe T.Text
+tryDecompRules [] input = Nothing
+tryDecompRules (r:rs) input =
+  case disassemble (getDecompRule r) input of
+    Nothing -> tryDecompRules rs input
+    Just ts -> let rRule = pickAny (getRecompRules r)
+               in Just (reassemble rRule ts)
+
+-- The bot per se
 eliza :: Script -> T.Text -> T.Text
 eliza script input =
-  let (phrase, kwStack) = scanKeywords script input
-  in if null kwStack
-      then head (greetings script)
-      else undefined
+  let (phrase, kwStack) = first T.unwords (scanKeywords script input)
+  in keywordsMatcher script kwStack phrase
 
 main :: IO ()
 main = putStrLn "Hi"
 
+-- TODO: be worked on
+pickAny = head
+
 -- Parser part
 
 -- Chunk a phrase into phrases made of words
-phrasesParser :: Parser [[Text]]
+phrasesParser :: Parser [[T.Text]]
 phrasesParser = phrase `sepEndBy` punctParser
-
-phrase :: Parser [Text]
-phrase = space *> (wordParser `sepEndBy` space)
-
-wordParser = fmap T.pack (some validChar)
+ where phrase = space *> (wordParser `sepEndBy` space)
+       wordParser = fmap T.pack (some validChar)
 
 validChar :: Parser Char
 validChar = satisfy (not . (\x -> isSeparator x || elem x puncts))
  where puncts = ".,!?;:" :: [Char]
 
 punctParser :: Parser Char
-punctParser = satisfy (\x -> elem x (".,!?;:" :: [Char]))
+punctParser = satisfy ((flip elem) (".,!?;:" :: [Char]))
+
+-- Apply parser and report error in case of failure
+parseReport p e t = maybe (error e) id (parseMaybe p t)
+
+parserFromRule :: [MatchingRule] -> Parser [T.Text]
+parserFromRule = sequence . unfoldr coalg
+ where
+  coalg :: [MatchingRule] -> Maybe (Parser T.Text, [MatchingRule])
+  coalg [] = Nothing
+  coalg [MatchAll] = Just (T.pack <$> manyTill (anySingle) eof, [])
+  coalg (MatchAll:rest@(MatchText t:xs)) =
+    Just (T.pack <$> manyTill anySingle (lookAhead $ string' t), rest)
+  coalg (MatchText t:xs) = Just (string' t, xs)
