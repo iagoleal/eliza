@@ -2,31 +2,42 @@
 module Main where
 
 import qualified Data.Text       as T
+import           Data.Text (Text)
+
 import qualified Data.Map.Strict as M
 import qualified Data.Sequence   as S
+
 import           Data.List       (find)
 import           Data.Foldable   (toList)
-import           Data.Bifunctor
+import           Data.Void       (Void)
 
-type Token = T.Text
+import           Text.Megaparsec
+import           Text.Megaparsec.Char
+import           Data.Char (isSeparator)
 
-type DecompRule = [MatchingRule]
-type RecompRule = [MatchingRule]
-type Rule = (DecompRule, [RecompRule])
+type Parser = Parsec Void T.Text
+
 data MatchingRule = MatchAll
-                  | MatchWord Token
+                  | MatchText T.Text
                   | MatchN Int
   deriving Show
 
-data Keyword = Keyword { kwToken :: Token
+type Rule = (Parser [T.Text], [ReassemblyRule])
+type ReassemblyRule = [MatchingRule]
+data Keyword = Keyword { kwWord :: T.Text
                        , kwPrecedence :: Int
                        , kwRules :: [Rule]
                        }
-  deriving Show
 
+data Script = Script { reflections :: (M.Map T.Text T.Text)
+                     , keywords    :: [Keyword]
+                     , defaultSays :: [T.Text]
+                     , greetings   :: [T.Text]
+                     }
 
-reflections :: M.Map T.Text T.Text
-reflections = M.fromList
+myScript :: Script
+myScript = Script
+  (M.fromList
   [("am", "are"),
    ("was", "were"),
    ("i", "you"),
@@ -40,85 +51,65 @@ reflections = M.fromList
    ("your", "my"),
    ("yours", "mine"),
    ("you", "me"),
-   ("me", "you")]
+   ("me", "you")])
+   [Keyword "happy" 5 []
+   , Keyword "me"   4 []
+   , Keyword "sad" 10 []
+   ]
+   ["How do you feel about that?"]
+   ["Hello, I'm Eliza, your new therapist. How are you feeling today?"]
 
-keywords :: [Keyword]
-keywords = [ Keyword "happy" 5 []
-           , Keyword "me"    4 []
-           , Keyword "sad"  10 []
-           ]
+reflect script input =
+  let wds = words input
+  in undefined
 
-tokenize :: T.Text -> [Token]
-tokenize = T.words . T.toLower
-
-reflect :: [Token] -> [Token]
-reflect = fmap reflectToken
+scanKeywords :: Script -> T.Text -> ([T.Text], [Keyword])
+scanKeywords script input = let
+  slices = case parseMaybe phrasesParser input of
+    Nothing -> error "Error parsing input"
+    Just x  -> x
+  in foldr (analyzeKeywords script) ([], []) slices
   where
-   reflectToken word = case M.lookup word reflections of
-     Nothing -> word
-     Just x  -> x
+   analyzeKeywords script phrase remainder =
+     case scanKwChunk script phrase of
+      []  -> remainder
+      kws -> (phrase, kws)
 
-scanKeywords :: [Token] -> [Keyword]
-scanKeywords l = toList $ loop l S.Empty (-1)
- where
-  loop []     stack _ = stack
-  loop (w:ws) stack p =
-    if w == "." || w == ","
-     then if null stack
-           then loop ws stack p
-           else stack
-     else case find ((==w) . kwToken) keywords of
+scanKwChunk :: Script -> [T.Text] -> [Keyword]
+scanKwChunk script ws = toList $ loop ws S.Empty (-1)
+  where
+   loop [] stack _ = stack
+   loop (w:ws) stack p =
+     case find ((==w) . kwWord) (keywords script) of
        Nothing -> loop ws stack p
-       Just kw -> if (kwPrecedence kw) > p
+       Just kw -> if kwPrecedence kw > p
                    then loop ws (kw S.:<| stack) (kwPrecedence kw)
-                   -- Should use a Seq here
                    else loop ws (stack S.:|> kw) p
 
-
-match :: [Keyword] -> [Token] -> T.Text
-match [] s = defaultScript
-match (k:ks) s = case matchRules (kwRules k) s of
-  Nothing -> match ks s
-  Just response  -> response
-
-matchRules :: [Rule] -> [Token] -> Maybe T.Text
-matchRules [] _ = Nothing
-matchRules (r:rs) s =  case decompose dRule s of
-  Nothing -> matchRules rs s
-  Just x  -> Just (recompose rRule s)
- where (dRule, rRule) = second head r
-
-
-decompose :: DecompRule -> [Token] -> Maybe [Token]
-decompose d ts = decompose' d ts []
-  where
-   decompose' [] [] res = Just res
-   decompose' [] (x:xs) _ = Nothing
-   decompose' (r:rs) [] res = Just res
-   decompose' (r:rs) t@(x:xs) res = case r of
-     MatchWord w -> if w == x
-                     then decompose' rs xs (res ++ [x])
-                     else Nothing
-     MatchN n    -> if length t >= n
-                     then let (a, b) = splitAt n t
-                          in decompose' rs b (res ++ a)
-                     else Nothing
-     MatchAll    -> if null rs
-                     then Just (res ++ t)
-                     else undefined
-
-recompose :: RecompRule -> [Token] -> T.Text
-recompose = undefined
-
-defaultScript :: T.Text
-defaultScript = "How do you feel about that?"
-
-eliza :: T.Text -> T.Text
-eliza input =
-  let tokens   = reflect (tokenize input)
-      keywords = scanKeywords tokens
-  in match keywords tokens
-
+eliza :: Script -> T.Text -> T.Text
+eliza script input =
+  let (phrase, kwStack) = scanKeywords script input
+  in if null kwStack
+      then head (greetings script)
+      else undefined
 
 main :: IO ()
-main = putStrLn "Hello, I'm Eliza, your new therapist. How are you feeling today?"
+main = putStrLn "Hi"
+
+-- Parser part
+
+-- Chunk a phrase into phrases made of words
+phrasesParser :: Parser [[Text]]
+phrasesParser = phrase `sepEndBy` punctParser
+
+phrase :: Parser [Text]
+phrase = space *> (wordParser `sepEndBy` space)
+
+wordParser = fmap T.pack (some validChar)
+
+validChar :: Parser Char
+validChar = satisfy (not . (\x -> isSeparator x || elem x puncts))
+ where puncts = ".,!?;:" :: [Char]
+
+punctParser :: Parser Char
+punctParser = satisfy (\x -> elem x (".,!?;:" :: [Char]))
