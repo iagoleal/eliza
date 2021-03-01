@@ -1,8 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists #-}
 module Main where
 
 import qualified Data.Text       as T
-import qualified Data.Map.Strict as M
+import qualified Data.Text.IO    as TIO
 import qualified Data.Sequence   as S
 
 import           Data.List       (unfoldr, find)
@@ -14,33 +15,12 @@ import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import           Data.Char (isSeparator)
 
-type Parser = Parsec Void T.Text
+import Script
 
-data MatchingRule = MatchAll
-                  | MatchText T.Text
-                  | MatchN Int
-  deriving Show
-
-type Rule = (Parser [T.Text], [ReassemblyRule])
-
-getDecompRule = fst
-getRecompRules = snd
-type ReassemblyRule = [MatchingRule]
-data Keyword = Keyword { kwWord :: T.Text
-                       , kwPrecedence :: Int
-                       , kwRules :: [Rule]
-                       }
-
-data Script = Script { reflections :: (M.Map T.Text T.Text)
-                     , keywords    :: [Keyword]
-                     , defaultSays :: [T.Text]
-                     , greetings   :: [T.Text]
-                     }
-
+-- To be substituted by a real script
 myScript :: Script
 myScript = Script
-  (M.fromList
-  [("am", "are"),
+  ([("am", "are"),
    ("was", "were"),
    ("i", "you"),
    ("i'd", "you would"),
@@ -96,7 +76,7 @@ reassemble rule ts = T.unwords $ fmap (assembler ts) rule
    assembler ws (MatchAll)    = T.unwords ws
 
 keywordsMatcher :: Script -> [Keyword] -> T.Text -> T.Text
-keywordsMatcher script [] input = pickAny (greetings script)
+keywordsMatcher script [] input = pickAny (defaultSays script)
 keywordsMatcher script (k:ks) input =
   case tryDecompRules (kwRules k) input of
     Nothing -> keywordsMatcher script ks input
@@ -111,13 +91,16 @@ tryDecompRules (r:rs) input =
                in Just (reassemble rRule ts)
 
 -- The bot per se
-eliza :: Script -> T.Text -> T.Text
+eliza :: Script -> (T.Text -> T.Text)
 eliza script input =
   let (phrase, kwStack) = first T.unwords (scanKeywords script input)
   in keywordsMatcher script kwStack phrase
 
 main :: IO ()
-main = putStrLn "Hi"
+main = do
+  input <- TIO.getLine
+  TIO.putStrLn (eliza myScript input)
+  main
 
 -- TODO: be worked on
 pickAny = head
@@ -139,13 +122,3 @@ punctParser = satisfy ((flip elem) (".,!?;:" :: [Char]))
 
 -- Apply parser and report error in case of failure
 parseReport p e t = maybe (error e) id (parseMaybe p t)
-
-parserFromRule :: [MatchingRule] -> Parser [T.Text]
-parserFromRule = sequence . unfoldr coalg
- where
-  coalg :: [MatchingRule] -> Maybe (Parser T.Text, [MatchingRule])
-  coalg [] = Nothing
-  coalg [MatchAll] = Just (T.pack <$> manyTill (anySingle) eof, [])
-  coalg (MatchAll:rest@(MatchText t:xs)) =
-    Just (T.pack <$> manyTill anySingle (lookAhead $ string' t), rest)
-  coalg (MatchText t:xs) = Just (string' t, xs)
