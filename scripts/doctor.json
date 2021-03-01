@@ -1,0 +1,39 @@
+{
+  "greetings": ["Hello, how are you feeling today?"],
+  "default": [
+    "I am not sure I understand you fully",
+    "Please go on",
+    "What does that suggest to you?",
+    "Do you feel strongly about discussing such things?"
+  ],
+  "reflections": [
+    "am"     : "are",
+    "was"    : "were",
+    "i"      : "you",
+    "i'd"    : "you would",
+    "i've"   : "you have",
+    "i'll"   : "you will",
+    "my"     : "your",
+    "are"    : "am",
+    "you’ve" : "I have",
+    "you’ll" : "I will",
+    "your"   : "my",
+    "yours"  : "mine",
+    "you"    : "me",
+    "me"     : "you"
+  ],
+  "keywords": [
+    {
+      "keyword": "happy",
+      "precedence": 10,
+      "rules": [
+        {
+          "decomposition": [],
+          "reassembly": [
+            []
+          ]
+        }
+      ]
+    }
+  ]
+}
