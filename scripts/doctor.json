@@ -6,7 +6,9 @@
     "What does that suggest to you?",
     "Do you feel strongly about discussing such things?"
   ],
-  "reflections": [
+  "reflection": [
+  ],
+  "reflections": {
     "am"     : "are",
     "was"    : "were",
     "i"      : "you",
@@ -19,9 +21,10 @@
     "you’ll" : "I will",
     "your"   : "my",
     "yours"  : "mine",
-    "you"    : "me",
-    "me"     : "you"
-  ],
+    "you"    : "I",
+    "me"     : "you",
+    "myself" : "yourself"
+  },
   "keywords": [
     {
       "keyword": "happy",
