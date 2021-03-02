@@ -28,9 +28,9 @@
       "precedence": 10,
       "rules": [
         {
-          "decomposition": [],
+          "decomposition": "* I am *",
           "reassembly": [
-            []
+            "Why $3"
           ]
         }
       ]
