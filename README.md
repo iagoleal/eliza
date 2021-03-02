@@ -2,7 +2,7 @@
 
 ## To do
 [x] Keyword finding parser
-[ ] Keyword reflections
+[x] Keyword reflections
 [ ] Disassembly -> Reassembly parser
 [ ] Adapt script from paper to JSON
 [ ] JSON reader for script

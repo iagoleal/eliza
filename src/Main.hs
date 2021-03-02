@@ -5,6 +5,7 @@ module Main where
 import qualified Data.Text       as T
 import qualified Data.Text.IO    as TIO
 import qualified Data.Sequence   as S
+import qualified Data.Map        as M
 import qualified Data.Vector     as V
 
 import           Data.List       (unfoldr, find)
@@ -70,7 +71,7 @@ scanKwChunk script ws = toList $ loop ws S.Empty (-1)
 disassemble :: Parser [T.Text] -> T.Text -> Maybe [T.Text]
 disassemble p input = parseMaybe p input
 
-reassemble :: ReassemblyRule -> [T.Text] -> T.Text
+reassemble :: [MatchingRule] -> [T.Text] -> T.Text
 reassemble rule ts = T.unwords . fmap (assembler ts) $ rule
   where
    assembler _  (MatchText t) = t
@@ -92,10 +93,16 @@ tryDecompRules rules input =
    ruleResult = fmap (sequence . (id &&& disassembler)) rules
    disassembler r = disassemble (getDecompRule r) input
 
+reflect :: Script -> [T.Text] -> [T.Text]
+reflect script = fmap exchange
+  where
+   exchange w = maybe w id (M.lookup (T.toLower w) (reflections script))
+
 -- The bot per se
 eliza :: Script -> (T.Text -> T.Text)
 eliza script input =
-  let (phrase, kwStack) = first T.unwords (scanKeywords script input)
+  let (words, kwStack) = (scanKeywords script input)
+      phrase = T.unwords (reflect script words)
   in keywordsMatcher script kwStack phrase
 
 main :: IO ()
