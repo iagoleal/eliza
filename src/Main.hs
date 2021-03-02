@@ -5,10 +5,11 @@ module Main where
 import qualified Data.Text       as T
 import qualified Data.Text.IO    as TIO
 import qualified Data.Sequence   as S
+import qualified Data.Vector     as V
 
 import           Data.List       (unfoldr, find)
-import           Data.Foldable   (toList)
-import           Data.Bifunctor
+import           Data.Foldable   (toList, asum)
+import           Control.Arrow
 import           Data.Void       (Void)
 
 import           Text.Megaparsec
@@ -43,6 +44,7 @@ myScript = Script
 
 
 -- Find Keywords
+
 scanKeywords :: Script -> T.Text -> ([T.Text], [Keyword])
 scanKeywords script input = let
   slices = parseReport phrasesParser "Error scanning keywords" input
@@ -69,26 +71,26 @@ disassemble :: Parser [T.Text] -> T.Text -> Maybe [T.Text]
 disassemble p input = parseMaybe p input
 
 reassemble :: ReassemblyRule -> [T.Text] -> T.Text
-reassemble rule ts = T.unwords $ fmap (assembler ts) rule
+reassemble rule ts = T.unwords . fmap (assembler ts) $ rule
   where
    assembler _  (MatchText t) = t
    assembler ws (MatchN n)    = ws !! (n-1)
    assembler ws (MatchAll)    = T.unwords ws
 
 keywordsMatcher :: Script -> [Keyword] -> T.Text -> T.Text
-keywordsMatcher script [] input = pickAny (defaultSays script)
-keywordsMatcher script (k:ks) input =
-  case tryDecompRules (kwRules k) input of
-    Nothing -> keywordsMatcher script ks input
-    Just output -> output
+keywordsMatcher script kws input =
+    foldr matchedOrDefault (pickAny $ defaultSays script) kws
+  where
+   matchedOrDefault kw def = maybe def id (tryDecompRules (kwRules kw) input)
 
-tryDecompRules :: [Rule] -> T.Text -> Maybe T.Text
-tryDecompRules [] input = Nothing
-tryDecompRules (r:rs) input =
-  case disassemble (getDecompRule r) input of
-    Nothing -> tryDecompRules rs input
-    Just ts -> let rRule = pickAny (getRecompRules r)
-               in Just (reassemble rRule ts)
+tryDecompRules :: Traversable t => t Rule -> T.Text -> Maybe T.Text
+tryDecompRules rules input =
+  asum ruleResult >>= \(rule, text) ->
+    let rRule = pickAny (getRecompRules rule)
+    in pure (reassemble rRule text)
+  where
+   ruleResult = fmap (sequence . (id &&& disassembler)) rules
+   disassembler r = disassemble (getDecompRule r) input
 
 -- The bot per se
 eliza :: Script -> (T.Text -> T.Text)
@@ -103,7 +105,7 @@ main = do
   main
 
 -- TODO: be worked on
-pickAny = head
+pickAny = V.head
 
 -- Parser part
 
