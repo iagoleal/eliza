@@ -9,6 +9,7 @@ import qualified Data.ByteString.Lazy as LB
 
 import Data.List (unfoldr)
 import Data.Maybe
+import Control.Arrow ((&&&))
 
 import           Data.Void       (Void)
 import           Text.Megaparsec
@@ -23,8 +24,8 @@ import           Data.Aeson ((.:))
 type Parser = Parsec Void T.Text
 
 -- All the information about how a ELIZA bot should talk
-data Script = Script { reflections :: (M.Map T.Text T.Text)
-                     , keywords    :: V.Vector Keyword
+data Script = Script { reflections :: M.Map T.Text T.Text
+                     , keywords    :: M.Map T.Text Keyword
                      , defaultSays :: V.Vector T.Text
                      , greetings   :: V.Vector T.Text
                      }
@@ -32,9 +33,9 @@ data Script = Script { reflections :: (M.Map T.Text T.Text)
 
 -- Store all the necessary info for a given keyword
 data Keyword = Keyword { kwWord       :: T.Text
-                   , kwPrecedence :: Int
-                   , kwRules      :: V.Vector Rule
-                   }
+                       , kwPrecedence :: Int
+                       , kwRules      :: V.Vector Rule
+                       }
   deriving Show
 
 -- maybe I should delete it and use only keywords?
@@ -97,11 +98,12 @@ instance Aeson.FromJSON Script where
    greetings   <- v .: "greetings"
    defaultSays <- v .: "default"
    reflections <- v .: "reflections"
-   keywords    <- v .: "keywords"
+   keywordList <- v .: "keywords"
+   let keywords = fmap (kwWord &&& id) keywordList
    pure $ Script { greetings   = greetings
                  , defaultSays = defaultSays
                  , reflections = reflections
-                 , keywords    = keywords
+                 , keywords    = M.fromList keywords
                  }
 
 instance Aeson.FromJSON Keyword where

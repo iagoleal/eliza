@@ -5,7 +5,7 @@ module Main where
 import qualified Data.Text       as T
 import qualified Data.Text.IO    as TIO
 import qualified Data.Sequence   as S
-import qualified Data.Map        as M
+import qualified Data.Map.Strict as M
 import qualified Data.Vector     as V
 
 import           Data.List       (unfoldr, find)
@@ -18,31 +18,6 @@ import           Text.Megaparsec.Char
 import           Data.Char (isSeparator)
 
 import Script
-
--- To be substituted by a real script
-myScript :: Script
-myScript = Script
-  ([("am", "are"),
-   ("was", "were"),
-   ("i", "you"),
-   ("i'd", "you would"),
-   ("i've", "you have"),
-   ("i'll", "you will"),
-   ("my", "your"),
-   ("are", "am"),
-   ("you’ve", "I have"),
-   ("you’ll", "I will"),
-   ("your", "my"),
-   ("yours", "mine"),
-   ("you", "me"),
-   ("me", "you")])
-   [Keyword "happy" 5 []
-   , Keyword "me"   4 []
-   , Keyword "sad" 10 []
-   ]
-   ["How do you feel about that?"]
-   ["Hello, I'm Eliza, your new therapist. How are you feeling today?"]
-
 
 -- Find Keywords
 
@@ -61,7 +36,7 @@ scanKwChunk script ws = toList $ loop ws S.Empty (-1)
   where
    loop [] stack _ = stack
    loop (w:ws) stack p =
-     case find ((==w) . kwWord) (keywords script) of
+     case M.lookup w (keywords script) of
        Nothing -> loop ws stack p
        Just kw -> if kwPrecedence kw > p
                    then loop ws (kw S.:<| stack) (kwPrecedence kw)
@@ -106,10 +81,7 @@ eliza script input =
   in keywordsMatcher script kwStack phrase
 
 main :: IO ()
-main = do
-  input <- TIO.getLine
-  TIO.putStrLn (eliza myScript input)
-  main
+main = putStrLn "Hi"
 
 -- TODO: be worked on
 pickAny = V.head
