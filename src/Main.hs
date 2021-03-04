@@ -46,12 +46,11 @@ scanKwChunk script ws = toList $ loop ws S.Empty (-1)
 disassemble :: Parser [T.Text] -> T.Text -> Maybe [T.Text]
 disassemble p input = parseMaybe p input
 
-reassemble :: [MatchingRule] -> [T.Text] -> T.Text
+reassemble :: [ReassemblyRule] -> [T.Text] -> T.Text
 reassemble rule ts = T.unwords . fmap (assembler ts) $ rule
   where
-   assembler _  (MatchText t) = t
-   assembler ws (MatchN n)    = ws !! (n-1)
-   assembler ws (MatchAll)    = T.unwords ws
+   assembler _  (ReturnText  t) = t
+   assembler ws (ReturnIndex n) = ws !! (n-1)
 
 keywordsMatcher :: Script -> [Keyword] -> T.Text -> T.Text
 keywordsMatcher script kws input =

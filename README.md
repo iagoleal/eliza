@@ -3,21 +3,11 @@
 ## To do
 - [x] Keyword finding parser
 - [x] Keyword reflections
-- [ ] Disassembly -> Reassembly parser
+- [x] Disassembly -> Reassembly parser
 - [ ] Add state to the main script, so greetings are random
 - [x] Adapt script from paper to JSON
-- [ ] JSON reader for script
+- [x] JSON reader for script
 - [ ] CLI interface
-
-
-### Modifications to matching rules:
-- Different types to decomp and recomp
-- Decomp: MatchAll | MatchNWords Int | MatchText Text | MatchAny [Text]
-- Recomp: ReturnNthWord Int | ReturnText Text
-- Should use a lexer and divide everything into words
-
-### Optimizations (not priority):
-- Store keywords in a Map
 
 ### Bugs:
 - parsers are case sensitive atm
@@ -31,11 +21,15 @@
 
 ## Rules
 
+Notice: Decomposition rules are word based but reassembly rules return spaces exactly.
+
+Words in decomposition rules only accept alpha
 ### Decomposition
-`*` -> matches all
 `bla` -> matches exactly the word "bla"
+`*` -> matches all
+`#<number>` -> matches exactly <number> words
 `[bla1 bla2 bla3]` -> matches any of the words
-`:group` -> matches a keyword from group "group
+`@group` -> matches a keyword from group "group"
 
 ### Reassembly
 `bla bla bla` -> return exactly
