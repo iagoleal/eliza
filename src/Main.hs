@@ -36,18 +36,19 @@ scanKwChunk script ws = toList $ loop ws S.Empty (-1)
   where
    loop [] stack _ = stack
    loop (w:ws) stack p =
-     case M.lookup w (keywords script) of
+     case M.lookup (T.toLower w) (keywords script) of
        Nothing -> loop ws stack p
        Just kw -> if kwPrecedence kw > p
                    then loop ws (kw S.:<| stack) (kwPrecedence kw)
                    else loop ws (stack S.:|> kw) p
 
 -- Pattern match response
-disassemble :: Parser [T.Text] -> T.Text -> Maybe [T.Text]
-disassemble p input = parseMaybe p input
+disassemble :: [MatchingRule] -> T.Text -> Maybe [T.Text]
+disassemble rs input = let p = parserFromRule rs
+                       in  parseMaybe p input
 
 reassemble :: [ReassemblyRule] -> [T.Text] -> T.Text
-reassemble rule ts = T.unwords . fmap (assembler ts) $ rule
+reassemble rule ts = T.concat . fmap (assembler ts) $ rule
   where
    assembler _  (ReturnText  t) = t
    assembler ws (ReturnIndex n) = ws !! (n-1)
@@ -62,7 +63,7 @@ tryDecompRules :: Traversable t => t Rule -> T.Text -> Maybe T.Text
 tryDecompRules rules input =
   asum ruleResult >>= \(rule, text) ->
     let rRule = pickAny (getRecompRules rule)
-    in pure (reassemble rRule text)
+    in  pure (reassemble rRule text)
   where
    ruleResult = fmap (sequence . (id &&& disassembler)) rules
    disassembler r = disassemble (getDecompRule r) input
@@ -80,17 +81,21 @@ eliza script input =
   in keywordsMatcher script kwStack phrase
 
 main :: IO ()
-main = putStrLn "Hi"
+main = do
+  script <- loadScript "scripts/doctor.json"
+  input <- TIO.getLine
+  TIO.putStrLn (eliza script input)
 
 -- TODO: be worked on
 pickAny = V.head
 
 -- Parser part
 
+
 -- Chunk a phrase into phrases made of words
 phrasesParser :: Parser [[T.Text]]
 phrasesParser = phrase `sepEndBy` punctParser
- where phrase = space *> (wordParser `sepEndBy` space)
+ where phrase = space *> some (lexeme (T.pack <$> some validChar))
        wordParser = fmap T.pack (some validChar)
 
 validChar :: Parser Char

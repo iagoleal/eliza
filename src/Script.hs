@@ -39,10 +39,8 @@ data Keyword = Keyword { kwWord       :: T.Text
   deriving Show
 
 -- maybe I should delete it and use only keywords?
-data Rule = Rule (Parser [T.Text]) (V.Vector [ReassemblyRule])
-
-instance Show Rule where
- show (Rule a b) = "(Rule Parser " ++ show b
+data Rule = Rule [MatchingRule] (V.Vector [ReassemblyRule])
+  deriving Show
 
 getDecompRule (Rule x _) = x
 getRecompRules (Rule _ x) = x
@@ -62,17 +60,17 @@ data ReassemblyRule = ReturnText T.Text
 loadScript :: T.Text -> IO Script
 loadScript filename = do
   json <- LB.readFile (T.unpack filename)
-  pure $ maybe errormsg id (Aeson.decode json)
- where errormsg = error $ "Failed to load file " ++ T.unpack filename
+  pure $ case Aeson.eitherDecode json of
+    Left  emsg   -> error $ "Failed to load file " <> T.unpack filename
+                          <> "\nError message: " <> emsg
+    Right script -> script
 
 {-
   Megaparsec Parsers
 -}
 
-readDecompRule :: T.Text -> Parser [T.Text]
-readDecompRule = parserFromRule . readDecompRule'
-
-readDecompRule' input = concat (parseMaybe parserMatchingRules input)
+readDecompRule :: T.Text -> [MatchingRule]
+readDecompRule input = concat (parseMaybe parserMatchingRules input)
 
 readReassemblyRule :: T.Text -> [ReassemblyRule]
 readReassemblyRule input = concat (parseMaybe parserReassemblyRules input)
@@ -132,10 +130,10 @@ parserFromRule = sequence . unfoldr coalg
     f rule = case whatParser rule of
       Just p  -> p
       Nothing -> case listToMaybe rs of
-        Just x  -> case whatParser x of
-          Just p  -> T.pack <$> manyTill anySingle (lookAhead p)
-          Nothing -> T.pack <$> manyTill anySingle eof
         Nothing -> T.pack <$> manyTill (anySingle) eof
+        Just x  -> case whatParser x of
+          Just p  -> T.strip . T.pack <$> manyTill anySingle (lookAhead p)
+          Nothing -> T.strip . T.pack <$> manyTill anySingle eof
   whatParser x = case x of
       MatchWord   w  -> Just (exactWord w)
       MatchChoice ws -> Just $ choice (fmap exactWord ws)
@@ -161,7 +159,7 @@ instance Aeson.FromJSON Script where
 
 instance Aeson.FromJSON Keyword where
  parseJSON = Aeson.withObject "Keyword" $ \ v -> do
-   word  <- v .: "keyword"
+   word  <- T.toLower <$> v .: "keyword"
    prec  <- v .: "precedence"
    rules <- v .: "rules"
    pure $ Keyword word prec rules

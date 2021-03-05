@@ -10,8 +10,10 @@
 - [ ] CLI interface
 
 ### Bugs:
-- parsers are case sensitive atm
+- input parsers / keyword lookup are not case-insensitive
 - parsers are space-insensitive but not output
+
+Think I fixed both of these but need more tests
 
 ### Original features not yet implemented
 - [ ] Memory
