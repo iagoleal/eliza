@@ -4,16 +4,13 @@
 - [x] Keyword finding parser
 - [x] Keyword reflections
 - [x] Disassembly -> Reassembly parser
-- [ ] Add state to the main script, so greetings are random
 - [x] Adapt script from paper to JSON
 - [x] JSON reader for script
+- [ ] Rewrite the main script with state
 - [ ] CLI interface
 
 ### Bugs:
-- input parsers / keyword lookup are not case-insensitive
 - parsers are space-insensitive but not output
-
-Think I fixed both of these but need more tests
 
 ### Original features not yet implemented
 - [ ] Memory
@@ -25,17 +22,18 @@ Think I fixed both of these but need more tests
 
 Notice: Decomposition rules are word based but reassembly rules return spaces exactly.
 
-Words in decomposition rules only accept alpha
+Words in decomposition rules only accept alphanumeric characters
+
 ### Decomposition
-`bla` -> matches exactly the word "bla"
-`*` -> matches all
-`#<number>` -> matches exactly <number> words
-`[bla1 bla2 bla3]` -> matches any of the words
-`@group` -> matches a keyword from group "group"
+| `bla`              | matches exactly the word "bla"       |
+| `*`                | matches all                          |
+| `#<number>`        | matches exactly <number> words       |
+| `[bla1 bla2 bla3]` | matches any of the words             |
+| `@group`           | matches a keyword from group "group" |
 
 ### Reassembly
-`bla bla bla` -> return exactly
-`$<number>` -> return nth word on read list
+| `bla bla bla` | return exactly               |
+| `$<number>`   | return nth word on read list |
 
 ## Bibliography
 - Joseph Weizenbaum. 1966. ELIZA — A Computer Program for the Study of Natural Language Communication Between Man and Machine. Commun. ACM 9, 1 (Jan. 1966), 36–45. DOI:https://doi.org/10.1145/365153.365168

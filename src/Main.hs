@@ -3,18 +3,18 @@
 module Main where
 
 import qualified Data.Text       as T
-import qualified Data.Text.IO    as TIO
+import qualified Data.Text.IO    as T
 import qualified Data.Sequence   as S
 import qualified Data.Map.Strict as M
 import qualified Data.Vector     as V
 
-import           Data.List       (unfoldr, find)
 import           Data.Foldable   (toList, asum)
-import           Control.Arrow
-import           Data.Void       (Void)
+import           Control.Arrow   ((&&&))
+import           System.Random
+import           Control.Monad.State
 
-import           Text.Megaparsec
-import           Text.Megaparsec.Char
+import qualified Text.Megaparsec as MP
+import qualified Text.Megaparsec.Char as MP
 import           Data.Char (isSeparator)
 
 import Script
@@ -22,33 +22,73 @@ import Script
 -- Auxiliar function
 foldrM :: (Foldable t, Monad m) => (a -> b -> m b) -> b -> t a -> m b
 foldrM f d = foldr (\x y -> f x =<< y) (pure d)
--- Find Keywords
 
-scanKeywords :: Script -> T.Text -> ([T.Text], [Keyword])
-scanKeywords script input = let
-  slices = parseReport phrasesParser "Error scanning keywords" input
-  in foldr (analyzeKeywords script) ([], []) slices
-  where
-   analyzeKeywords script phrase remainder =
-     case scanKwChunk script phrase of
+{-
+  State
+-}
+data BotState = BotState { botScript :: Script
+                         , botSeed   :: StdGen
+                         }
+  deriving Show
+
+main :: IO ()
+main = do
+  script <- loadScript "scripts/doctor.json"
+  gen    <- newStdGen
+  let bot = (BotState script gen)
+  go bot
+ where
+  go bot = do
+    input <- T.getLine
+    let (r, s) = runState (answer input) bot
+    T.putStrLn r
+    go s
+
+-- The bot per se
+
+eliza :: BotState -> (T.Text -> T.Text)
+eliza botState input = evalState (answer input) botState
+
+answer :: T.Text -> State BotState T.Text
+answer input = do
+  (ws, kwStack) <- scanKeywords input
+  phrase <- T.unwords <$> reflect ws
+  keywordsMatcher kwStack phrase
+
+pickAny :: V.Vector a -> State BotState a
+pickAny v = do
+  bot <- get
+  let (idx, nseed) = randomR (0, V.length v - 1) (botSeed bot)
+  put bot{botSeed = nseed}
+  V.indexM v idx
+
+-- Find Keywords
+scanKeywords :: T.Text -> State BotState ([T.Text], [Keyword])
+scanKeywords input = case MP.parse phrasesParser "" input of
+    Left _  -> pure ([], [])
+    Right slices -> foldrM analyzeKeywords ([], []) slices
+ where
+  analyzeKeywords phrase remainder = do
+    kwords <- scanKwChunk phrase
+    pure $ case kwords of
       []  -> remainder
       kws -> (phrase, kws)
 
-scanKwChunk :: Script -> [T.Text] -> [Keyword]
-scanKwChunk script ws = toList $ loop ws S.Empty (-1)
-  where
-   loop [] stack _ = stack
-   loop (w:ws) stack p =
-     case M.lookup (T.toLower w) (keywords script) of
-       Nothing -> loop ws stack p
-       Just kw -> if kwPrecedence kw > p
-                   then loop ws (kw S.:<| stack) (kwPrecedence kw)
-                   else loop ws (stack S.:|> kw) p
+scanKwChunk :: [T.Text] -> State BotState [Keyword]
+scanKwChunk ws = do
+  script <- botScript <$> get
+  let loop [] stack _ = stack
+      loop (w:ws) stack p = case findKeyword w script of
+        Nothing -> loop ws stack p
+        Just kw -> if kwPrecedence kw > p
+                    then loop ws (kw S.:<| stack) (kwPrecedence kw)
+                    else loop ws (stack S.:|> kw) p
+  pure (toList $ loop ws S.Empty (-1))
 
 -- Pattern match response
 disassemble :: [MatchingRule] -> T.Text -> Maybe [T.Text]
 disassemble rs input = let p = parserFromRule rs
-                       in  parseMaybe p input
+                       in  MP.parseMaybe p input
 
 reassemble :: [ReassemblyRule] -> [T.Text] -> T.Text
 reassemble rule ts = T.concat . fmap (assembler ts) $ rule
@@ -56,57 +96,47 @@ reassemble rule ts = T.concat . fmap (assembler ts) $ rule
    assembler _  (ReturnText  t) = t
    assembler ws (ReturnIndex n) = ws !! (n-1)
 
-keywordsMatcher :: Script -> [Keyword] -> T.Text -> T.Text
-keywordsMatcher script kws input =
-    foldr matchedOrDefault (pickAny $ defaultSays script) kws
+keywordsMatcher :: [Keyword] -> T.Text -> State BotState T.Text
+keywordsMatcher kws input = do
+  deft <- pickAny =<< gets (defaultSays . botScript)
+  foldrM matchedOrDefault deft kws
   where
-   matchedOrDefault kw def = maybe def id (tryDecompRules (kwRules kw) input)
+   matchedOrDefault kw remainder = maybe (pure remainder) id
+                                         (tryDecompRules (kwRules kw) input)
 
-tryDecompRules :: Traversable t => t Rule -> T.Text -> Maybe T.Text
-tryDecompRules rules input =
-  asum ruleResult >>= \(rule, text) ->
-    let rRule = pickAny (getRecompRules rule)
-    in  pure (reassemble rRule text)
+tryDecompRules :: Traversable t => t Rule -> T.Text -> Maybe (State BotState T.Text)
+tryDecompRules rules input = do
+  (rule, text) <- asum ruleResult
+  -- TODO: State monad!!!
+  pure $ do
+    rRule <- pickAny (getRecompRules rule)
+    pure (reassemble rRule text)
   where
-   ruleResult = fmap (sequence . (id &&& disassembler)) rules
+   ruleResult  = fmap (sequence . (id &&& disassembler)) rules
    disassembler r = disassemble (getDecompRule r) input
 
-reflect :: Script -> [T.Text] -> [T.Text]
-reflect script = fmap exchange
-  where
-   exchange w = maybe w id (M.lookup (T.toLower w) (reflections script))
+reflect :: [T.Text] -> State BotState [T.Text]
+reflect ws = do
+  script <- botScript <$> get
+  let exchange w = maybe w id (findReflection w script)
+  pure (fmap exchange ws)
 
--- The bot per se
-eliza :: Script -> (T.Text -> T.Text)
-eliza script input =
-  let (words, kwStack) = (scanKeywords script input)
-      phrase = T.unwords (reflect script words)
-  in keywordsMatcher script kwStack phrase
-
-main :: IO ()
-main = do
-  script <- loadScript "scripts/doctor.json"
-  input <- TIO.getLine
-  TIO.putStrLn (eliza script input)
-
--- TODO: be worked on
-pickAny = V.head
-
--- Parser part
-
+{-
+  Parser part
+-}
 
 -- Chunk a phrase into phrases made of words
 phrasesParser :: Parser [[T.Text]]
-phrasesParser = phrase `sepEndBy` punctParser
- where phrase = space *> some (lexeme (T.pack <$> some validChar))
-       wordParser = fmap T.pack (some validChar)
+phrasesParser = MP.sepEndBy phrase punctParser
+ where phrase = MP.space *> MP.some (lexeme (T.pack <$> MP.some validChar))
+       wordParser = fmap T.pack (MP.some validChar)
 
 validChar :: Parser Char
-validChar = satisfy (not . (\x -> isSeparator x || elem x puncts))
+validChar = MP.satisfy (not . (\x -> isSeparator x || elem x puncts))
  where puncts = ".,!?;:" :: [Char]
 
 punctParser :: Parser Char
-punctParser = satisfy ((flip elem) (".,!?;:" :: [Char]))
+punctParser = MP.satisfy ((flip elem) (".,!?;:" :: [Char]))
 
 -- Apply parser and report error in case of failure
-parseReport p e t = maybe (error e) id (parseMaybe p t)
+parseReport p e t = maybe (error e) id (MP.parseMaybe p t)

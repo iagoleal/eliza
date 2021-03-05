@@ -18,6 +18,8 @@ executable eliza
   main-is:             Main.hs
   default-language:    Haskell2010
   build-depends:       base,
+                       random,
+                       mtl,
                        text,
                        bytestring,
                        containers,
