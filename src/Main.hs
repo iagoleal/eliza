@@ -19,6 +19,9 @@ import           Data.Char (isSeparator)
 
 import Script
 
+-- Auxiliar function
+foldrM :: (Foldable t, Monad m) => (a -> b -> m b) -> b -> t a -> m b
+foldrM f d = foldr (\x y -> f x =<< y) (pure d)
 -- Find Keywords
 
 scanKeywords :: Script -> T.Text -> ([T.Text], [Keyword])

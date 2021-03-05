@@ -3,7 +3,6 @@ module Script where
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector     as V
-
 import qualified Data.Text       as T
 import qualified Data.ByteString.Lazy as LB
 
@@ -57,13 +56,20 @@ data ReassemblyRule = ReturnText T.Text
                     | ReturnIndex Int
   deriving Show
 
-loadScript :: T.Text -> IO Script
+
+loadScript :: FilePath -> IO Script
 loadScript filename = do
-  json <- LB.readFile (T.unpack filename)
+  json <- LB.readFile filename
   pure $ case Aeson.eitherDecode json of
-    Left  emsg   -> error $ "Failed to load file " <> T.unpack filename
+    Left  emsg   -> error $ "Failed to load file " <> filename
                           <> "\nError message: " <> emsg
     Right script -> script
+
+findKeyword :: T.Text -> Script -> Maybe Keyword
+findKeyword w script = M.lookup (T.toLower w) (keywords script)
+
+findReflection :: T.Text -> Script -> Maybe T.Text
+findReflection w script = M.lookup (T.toLower w) (reflections script)
 
 {-
   Megaparsec Parsers
@@ -149,12 +155,11 @@ instance Aeson.FromJSON Script where
    greetings   <- v .: "greetings"
    defaultSays <- v .: "default"
    reflections <- v .: "reflections"
-   keywordList <- v .: "keywords"
-   let keywords = fmap (kwWord &&& id) keywordList
+   keywords    <- v .: "keywords"
    pure $ Script { greetings   = greetings
                  , defaultSays = defaultSays
                  , reflections = reflections
-                 , keywords    = M.fromList keywords
+                 , keywords    = M.fromList (fmap (kwWord &&& id) keywords)
                  }
 
 instance Aeson.FromJSON Keyword where
