@@ -18,7 +18,6 @@ executable eliza
   hs-source-dirs:
     app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
-  other-modules:   Paths_eliza
   build-depends:
      eliza
    , base >= 4.7 && < 5
@@ -37,6 +36,8 @@ library
   exposed-modules:
       Eliza
       CLI
+  other-modules:
+      Script
   hs-source-dirs:
       src
   build-depends:
