@@ -101,30 +101,6 @@ parserReassemblyRules = space *> some (returnIndex <|> returnText)
    returnText  = ReturnText . T.pack <$> some validChar
    validChar   = satisfy (not .  (=='$'))
 
-spaceConsumer :: Parser ()
-spaceConsumer = L.space space1 empty empty
-
-lexeme :: Parser a -> Parser a
-lexeme = L.lexeme spaceConsumer
-
-symbol :: T.Text -> Parser T.Text
-symbol = L.symbol' spaceConsumer
-
-exactWord :: T.Text -> Parser T.Text
-exactWord word = lexeme (string' word <* notFollowedBy alphaNumChar)
-
-word :: Parser T.Text
-word = lexeme $ T.pack <$> some (alphaNumChar <|> char '\'' <|> char '-')
-
-brackets = between (symbol "[") (symbol "]")
-
-positiveInteger :: Parser Int
-positiveInteger = do
-  d <- lexeme L.decimal
-  if d == 0
-   then fail "Zero index not allowed"
-   else pure d
-
 parserFromRule :: [MatchingRule] -> Parser [T.Text]
 parserFromRule = sequence . unfoldr coalg
  where
@@ -176,7 +152,32 @@ instance Aeson.FromJSON Rule where
    let recomps = readReassemblyRule <$> recompStrings
    pure (Rule decomp recomps)
 
+{- Basic Parsers -}
+spaceConsumer :: Parser ()
+spaceConsumer = L.space space1 empty empty
 
+lexeme :: Parser a -> Parser a
+lexeme = L.lexeme spaceConsumer
+
+symbol :: T.Text -> Parser T.Text
+symbol = L.symbol' spaceConsumer
+
+exactWord :: T.Text -> Parser T.Text
+exactWord word = lexeme (string' word <* notFollowedBy alphaNumChar)
+
+word :: Parser T.Text
+word = lexeme $ T.pack <$> some (alphaNumChar <|> char '\'' <|> char '-')
+
+brackets = between (symbol "[") (symbol "]")
+
+positiveInteger :: Parser Int
+positiveInteger = do
+  d <- lexeme L.decimal
+  if d == 0
+   then fail "Zero index not allowed"
+   else pure d
+
+{- Default Script -}
 defaultScript :: Script
 defaultScript = fromJust $ Aeson.decode defaultScriptJSON
 
