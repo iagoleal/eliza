@@ -14,16 +14,40 @@ cabal-version:       >=1.10
 extra-source-files:  README.md
 
 executable eliza
-  hs-source-dirs:      src
-  main-is:             Main.hs
-  default-language:    Haskell2010
-  build-depends:       base,
-                       random,
-                       mtl,
-                       text,
-                       bytestring,
-                       containers,
-                       vector,
-                       megaparsec,
-                       aeson
+  main-is: Main.hs
+  hs-source-dirs:
+    app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  other-modules:   Paths_eliza
+  build-depends:
+     eliza
+   , base >= 4.7 && < 5
+   , random
+   , mtl
+   , text
+   , bytestring
+   , containers
+   , vector
+   , megaparsec
+   , aeson
   default-extensions: OverloadedStrings
+  default-language: Haskell2010
+
+library
+  exposed-modules:
+      Eliza
+      CLI
+  hs-source-dirs:
+      src
+  build-depends:
+     base >= 4.7 && < 5
+   , random
+   , mtl
+   , text
+   , bytestring
+   , containers
+   , vector
+   , megaparsec
+   , aeson
+  default-extensions: OverloadedStrings
+  default-language: Haskell2010

@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE OverloadedLists #-}
-module Main where
+module Eliza (
+    module Eliza
+  , module Script
+  ) where
 
 import qualified Data.Text       as T
 import qualified Data.Text.IO    as T
@@ -31,18 +33,10 @@ data BotState = BotState { botScript :: Script
                          }
   deriving Show
 
-main :: IO ()
-main = do
-  script <- loadScript "scripts/doctor.json"
-  gen    <- newStdGen
-  let bot = (BotState script gen)
-  go bot
- where
-  go bot = do
-    input <- T.getLine
-    let (r, s) = runState (answer input) bot
-    T.putStrLn r
-    go s
+initBotState :: Script -> IO BotState
+initBotState script = do
+  seed <- newStdGen
+  pure (BotState script seed)
 
 -- The bot per se
 
