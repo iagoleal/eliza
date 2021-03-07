@@ -3,6 +3,9 @@
     "Hello, how are you feeling today?",
     "How do you do? Please tell me your problem"
   ],
+  "goodbye": [
+    "Goodbye"
+  ],
   "default": [
     "I am not sure I understand you fully",
     "Please go on",
