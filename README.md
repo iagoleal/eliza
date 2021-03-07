@@ -1,5 +1,9 @@
 # Eliza Chatbot
 
+| **Build Status** |
+|:----------------:|
+| [![Build Status][build-img]][build-url] |
+
 This is a Haskell implementation of Weizembaum's classic chatbot ELIZA,
 based upon the description found on his 1966 ACM paper [[1]](#1).
 
@@ -73,3 +77,7 @@ If a phrase does not match the rule structure, the program skips the rule.
 ## References
 <a id="1">[1]</a>
 - Joseph Weizenbaum. 1966. ELIZA — A Computer Program for the Study of Natural Language Communication Between Man and Machine. Commun. ACM 9, 1 (Jan. 1966), 36–45. DOI: https://doi.org/10.1145/365153.365168
+
+
+[build-img]: https://github.com/iagoleal/eliza/actions/workflows/ci.yml/badge.svg?branch=master
+[build-url]: https://github.com/iagoleal/eliza/actions/workflows/ci.yml
