@@ -5,14 +5,15 @@ import qualified Data.Text.IO    as T
 
 import Control.Monad.State
 import Control.Monad
+import System.IO
 
 import Eliza
 
 data UserInput = CmdQuit | CmdError | Input T.Text
 
-cliRepl :: IO ()
-cliRepl = do
-  bot <- initBotState defaultScript
+cliRepl :: Script -> IO ()
+cliRepl script = do
+  bot <- initBotState script
   let (greet, bot') = runState (pickAny (greetings . botScript $ bot)) bot
   cliOutput greet
   repl bot
@@ -37,6 +38,7 @@ userPrompt = "> "
 
 cliInput = do
   T.putStr userPrompt
+  hFlush stdout
   input <- T.getLine
   T.putStrLn ""
   pure input
