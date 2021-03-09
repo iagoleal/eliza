@@ -1,5 +1,5 @@
 name: CI
-
+# Adapted from https://github.com/kowainik/.github/blob/main/workflow-templates/ci.yml
 on:
   pull_request:
     branches:
