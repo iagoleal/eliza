@@ -22,6 +22,7 @@ executable eliza
      eliza
    , base >= 4.7 && < 5
    , random
+   , transformers
    , mtl
    , text
    , bytestring
@@ -43,6 +44,7 @@ library
   build-depends:
      base >= 4.7 && < 5
    , random
+   , transformers
    , mtl
    , text
    , bytestring
