@@ -5,15 +5,16 @@ module Eliza (
   ) where
 
 import qualified Data.Text       as T
-import qualified Data.Text.IO    as T
 import qualified Data.Sequence   as S
-import qualified Data.Map.Strict as M
 import qualified Data.Vector     as V
 
 import           Data.Foldable   (toList, asum)
+import           Data.List (unfoldr)
+import           Data.Maybe
 import           Control.Arrow   ((&&&))
 import           System.Random
 import           Control.Monad.State
+import           Control.Monad.Trans.Maybe
 
 import qualified Text.Megaparsec as MP
 import qualified Text.Megaparsec.Char as MP
@@ -24,6 +25,15 @@ import Script
 -- Auxiliar function
 foldrM :: (Foldable t, Monad m) => (a -> b -> m b) -> b -> t a -> m b
 foldrM f d = foldr (\x y -> f x =<< y) (pure d)
+
+unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> m [a]
+unfoldrM f seed = do
+  res <- f seed
+  case res of
+    Just (a, b) -> do
+      bs <- unfoldrM f b
+      pure (a : bs)
+    Nothing -> pure []
 
 {-
   State
@@ -46,7 +56,7 @@ eliza botState input = evalState (answer input) botState
 answer :: T.Text -> State BotState T.Text
 answer input = do
   (ws, kwStack) <- scanKeywords input
-  phrase <- T.unwords <$> reflect ws
+  phrase <- fmap T.unwords (reflect ws)
   keywordsMatcher kwStack phrase
 
 pickAny :: V.Vector a -> State BotState a
@@ -69,7 +79,7 @@ scanKeywords input = case MP.parse phrasesParser "" input of
       kws -> (phrase, kws)
 
 scanKwChunk :: [T.Text] -> State BotState [Keyword]
-scanKwChunk ws = do
+scanKwChunk wrds = do
   script <- botScript <$> get
   let loop [] stack _ = stack
       loop (w:ws) stack p = case findKeyword w script of
@@ -77,7 +87,7 @@ scanKwChunk ws = do
         Just kw -> if kwPrecedence kw > p
                     then loop ws (kw S.:<| stack) (kwPrecedence kw)
                     else loop ws (stack S.:|> kw) p
-  pure (toList $ loop ws S.Empty (-1))
+  pure (toList $ loop wrds S.Empty (-1))
 
 -- Pattern match response
 disassemble :: [MatchingRule] -> T.Text -> Maybe [T.Text]
@@ -101,8 +111,7 @@ keywordsMatcher kws input = do
 tryDecompRules :: Traversable t => t Rule -> T.Text -> Maybe (State BotState T.Text)
 tryDecompRules rules input = do
   (rule, text) <- asum ruleResult
-  -- TODO: State monad!!!
-  pure $ do
+  Just $ do
     rRule <- pickAny (getRecompRules rule)
     pure (reassemble rRule text)
   where
@@ -115,6 +124,29 @@ reflect ws = do
   let exchange w = maybe w id (findReflection w script)
   pure (fmap exchange ws)
 
+parserFromRule :: [MatchingRule] -> Parser [T.Text]
+parserFromRule = sequence . unfoldr coalg
+ where
+  coalg :: [MatchingRule] -> Maybe (Parser T.Text, [MatchingRule])
+  coalg [] = Nothing
+  coalg (rule:rs) = passOn (f rule)
+   where
+    passOn x = Just (x, rs)
+    f r = case whatParser r of
+      Just p  -> p
+      Nothing -> case listToMaybe rs of
+        Nothing -> T.pack <$> MP.manyTill (MP.anySingle) MP.eof
+        Just x  -> case whatParser x of
+          Just p  -> T.strip . T.pack <$> MP.manyTill MP.anySingle (MP.lookAhead p)
+          Nothing -> T.strip . T.pack <$> MP.manyTill MP.anySingle MP.eof
+  whatParser x = case x of
+      MatchWord   w  -> Just (exactWord w)
+      MatchChoice ws -> Just $ MP.choice (fmap exactWord ws)
+      MatchGroup  g  -> Nothing -- TODO implement group lookup with Script State
+      MatchN      n  -> Just (T.unwords <$> MP.count n word)
+      MatchAll       -> Nothing
+
+
 {-
   Parser part
 -}
@@ -123,7 +155,6 @@ reflect ws = do
 phrasesParser :: Parser [[T.Text]]
 phrasesParser = MP.sepEndBy phrase punctParser
  where phrase = MP.space *> MP.some (lexeme (T.pack <$> MP.some validChar))
-       wordParser = fmap T.pack (MP.some validChar)
 
 validChar :: Parser Char
 validChar = MP.satisfy (not . (\x -> isSeparator x || elem x puncts))

@@ -6,9 +6,8 @@ import qualified Data.Vector     as V
 import qualified Data.Text       as T
 import qualified Data.ByteString.Lazy as LB
 
-import Data.List (unfoldr)
-import Data.Maybe
-import Control.Arrow ((&&&))
+import           Data.Maybe
+import           Control.Arrow ((&&&))
 
 import           Data.Void       (Void)
 import           Text.Megaparsec
@@ -22,11 +21,12 @@ import           Data.Aeson ((.:))
 -- For use in Megaparsec parsers
 type Parser = Parsec Void T.Text
 
--- All the information about how a ELIZA bot should talk
+-- All the information about how a ELIZA bot should respond
 data Script = Script { reflections :: M.Map T.Text T.Text
                      , keywords    :: M.Map T.Text Keyword
                      , defaultSays :: V.Vector T.Text
                      , greetings   :: V.Vector T.Text
+                     , groups      :: M.Map T.Text [T.Text]
                      }
   deriving Show
 
@@ -91,7 +91,6 @@ parserMatchingRules = space *> some rule
    matchChoice = MatchChoice <$> brackets (some word)
    matchGroup  = MatchGroup  <$> (char '@' *> word)
    rule = choice [matchAll, matchN, matchChoice, matchGroup, matchWord]
-   specialChars = "*#[]@" :: [Char]
 
 parserReassemblyRules :: Parser [ReassemblyRule]
 parserReassemblyRules = space *> some (returnIndex <|> returnText)
@@ -101,28 +100,6 @@ parserReassemblyRules = space *> some (returnIndex <|> returnText)
    returnText  = ReturnText . T.pack <$> some validChar
    validChar   = satisfy (not .  (=='$'))
 
-parserFromRule :: [MatchingRule] -> Parser [T.Text]
-parserFromRule = sequence . unfoldr coalg
- where
-  coalg :: [MatchingRule] -> Maybe (Parser T.Text, [MatchingRule])
-  coalg [] = Nothing
-  coalg (rule:rs) = passOn (f rule)
-   where
-    passOn x = Just (x, rs)
-    f rule = case whatParser rule of
-      Just p  -> p
-      Nothing -> case listToMaybe rs of
-        Nothing -> T.pack <$> manyTill (anySingle) eof
-        Just x  -> case whatParser x of
-          Just p  -> T.strip . T.pack <$> manyTill anySingle (lookAhead p)
-          Nothing -> T.strip . T.pack <$> manyTill anySingle eof
-  whatParser x = case x of
-      MatchWord   w  -> Just (exactWord w)
-      MatchChoice ws -> Just $ choice (fmap exactWord ws)
-      MatchGroup  g  -> Nothing -- TODO implement group lookup with Script State
-      MatchN      n  -> Just (T.unwords <$> count n word)
-      MatchAll       -> Nothing
-
 {-
   Read from JSON
 -}
@@ -130,10 +107,12 @@ instance Aeson.FromJSON Script where
  parseJSON = Aeson.withObject "Script" $ \ v -> do
    greetings   <- v .: "greetings"
    defaultSays <- v .: "default"
+   groups      <- v .: "groups"
    reflections <- v .: "reflections"
    keywords    <- v .: "keywords"
    pure $ Script { greetings   = greetings
                  , defaultSays = defaultSays
+                 , groups      = groups
                  , reflections = reflections
                  , keywords    = M.fromList (fmap (kwWord &&& id) keywords)
                  }
@@ -148,8 +127,7 @@ instance Aeson.FromJSON Keyword where
 instance Aeson.FromJSON Rule where
  parseJSON = Aeson.withObject "Rule" $ \ o -> do
    decomp <- readDecompRule <$> o .: "decomposition"
-   recompStrings <- o .: "reassembly"
-   let recomps = readReassemblyRule <$> recompStrings
+   recomps <- fmap readReassemblyRule <$> o .: "reassembly"
    pure (Rule decomp recomps)
 
 {- Basic Parsers -}
@@ -163,11 +141,12 @@ symbol :: T.Text -> Parser T.Text
 symbol = L.symbol' spaceConsumer
 
 exactWord :: T.Text -> Parser T.Text
-exactWord word = lexeme (string' word <* notFollowedBy alphaNumChar)
+exactWord w = lexeme (string' w <* notFollowedBy alphaNumChar)
 
 word :: Parser T.Text
 word = lexeme $ T.pack <$> some (alphaNumChar <|> char '\'' <|> char '-')
 
+brackets :: Parser a -> Parser a
 brackets = between (symbol "[") (symbol "]")
 
 positiveInteger :: Parser Int
