@@ -10,12 +10,10 @@ import qualified Text.Megaparsec as MP
 import qualified Text.Megaparsec.Char as MP
 
 import Eliza
+import Utils
 
 data UserInput = CmdQuit | CmdError | CmdHelp | CmdLoad FilePath | Input T.Text
   deriving Show
-
-hoistState :: State s a -> StateT s IO a
-hoistState = state . runState
 
 cliRepl :: Script -> IO ()
 cliRepl script = do

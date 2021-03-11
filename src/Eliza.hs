@@ -8,32 +8,17 @@ import qualified Data.Text       as T
 import qualified Data.Sequence   as S
 import qualified Data.Vector     as V
 
-import           Data.Foldable   (toList, asum)
-import           Data.List (unfoldr)
-import           Data.Maybe
-import           Control.Arrow   ((&&&))
+import           Data.Foldable (toList, asum)
 import           System.Random
 import           Control.Monad.State
 import           Control.Monad.Trans.Maybe
 
-import qualified Text.Megaparsec as MP
-import qualified Text.Megaparsec.Char as MP
+import Text.Megaparsec hiding (State)
+import Text.Megaparsec.Char
 import           Data.Char (isSeparator)
 
 import Script
-
--- Auxiliar function
-foldrM :: (Foldable t, Monad m) => (a -> b -> m b) -> b -> t a -> m b
-foldrM f d = foldr (\x y -> f x =<< y) (pure d)
-
-unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> m [a]
-unfoldrM f seed = do
-  res <- f seed
-  case res of
-    Just (a, b) -> do
-      bs <- unfoldrM f b
-      pure (a : bs)
-    Nothing -> pure []
+import Utils
 
 {-
   State

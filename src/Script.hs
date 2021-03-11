@@ -9,7 +9,6 @@ import qualified Data.ByteString.Lazy as LB
 import           Data.Maybe
 import           Control.Arrow ((&&&))
 
-import           Data.Void       (Void)
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -17,9 +16,8 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Data.Aeson as Aeson
 import           Data.Aeson ((.:))
 
+import Utils
 
--- For use in Megaparsec parsers
-type Parser = Parsec Void T.Text
 
 -- All the information about how a ELIZA bot should respond
 data Script = Script { reflections :: M.Map T.Text T.Text
@@ -130,31 +128,6 @@ instance Aeson.FromJSON Rule where
    recomps <- fmap readReassemblyRule <$> o .: "reassembly"
    pure (Rule decomp recomps)
 
-{- Basic Parsers -}
-spaceConsumer :: Parser ()
-spaceConsumer = L.space space1 empty empty
-
-lexeme :: Parser a -> Parser a
-lexeme = L.lexeme spaceConsumer
-
-symbol :: T.Text -> Parser T.Text
-symbol = L.symbol' spaceConsumer
-
-exactWord :: T.Text -> Parser T.Text
-exactWord w = lexeme (string' w <* notFollowedBy alphaNumChar)
-
-word :: Parser T.Text
-word = lexeme $ T.pack <$> some (alphaNumChar <|> char '\'' <|> char '-')
-
-brackets :: Parser a -> Parser a
-brackets = between (symbol "[") (symbol "]")
-
-positiveInteger :: Parser Int
-positiveInteger = do
-  d <- lexeme L.decimal
-  if d == 0
-   then fail "Zero index not allowed"
-   else pure d
 
 {- Default Script -}
 defaultScript :: Script
