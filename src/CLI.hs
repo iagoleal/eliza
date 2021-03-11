@@ -78,11 +78,11 @@ processInput s = maybe (Input s) id $ MP.parseMaybe commands s
    cmdQuit  = CmdQuit  <$  parseCmd ["quit", "q", "bye"]
    cmdHelp  = CmdHelp  <$  parseCmd ["help", "h"]
    cmdLoad  = CmdLoad  <$> (parseCmd ["load", "l"] >> MP.some MP.anySingle)
-   cmdError = CmdError <$ (MP.char ':' >> MP.many MP.anySingle)
+   cmdError = CmdError <$ (MP.space *> MP.char ':' >> MP.many MP.anySingle)
    commands = MP.choice $ fmap MP.try [cmdHelp, cmdQuit, cmdLoad, cmdError]
 
 parseCmd :: (Foldable f, Functor f) => f T.Text -> Parser T.Text
-parseCmd xs = MP.char ':' *> (MP.choice $ fmap exactWord xs)
+parseCmd xs = MP.space *> MP.char ':' *> (MP.choice $ fmap exactWord xs)
 
 safeTextHead :: T.Text -> Maybe Char
 safeTextHead = fmap fst . T.uncons
