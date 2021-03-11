@@ -39,6 +39,7 @@ library
       CLI
   other-modules:
       Script
+      Utils
   hs-source-dirs:
       src
   build-depends:
