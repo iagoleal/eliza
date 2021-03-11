@@ -4,7 +4,7 @@
 |:----------------:|
 | [![Build Status][build-img]][build-url] |
 
-This is a Haskell implementation of Joseph Weizembaum's classic chatbot ELIZA,
+This is a Haskell implementation of Joseph Weizenbaum's classic chatbot ELIZA,
 based upon the description found on his 1966 ACM paper [[1]](#1).
 
 # Installation
@@ -91,38 +91,45 @@ How to write them is explained below.
 
 ### Decomposition rules
 
-A decomposition rule consists of a string of space separated expressions.
+There are two options for a decomposition rule.
+Either it is of the form `"=<word>"`,
+in which case it tells the program to try the rules associated with the keyword `<word>`,
+or it consists of a string of space separated expressions as described below.
+
+| Expression            | Description                         |
+|:----------------------|:------------------------------------|
+| `<word>`              | match exactly `<word>`              |
+| `*`                   | match zero or more words            |
+| `#<number>`           | match exactly `<number>` words      |
+| `[<word> ... <word>]` | match any of word in the list       |
+| `@<word>`             | match a keyword from group `<word>` |
+
 Each expression matches a certain kind of word or phrase.
-See the description below.
-
-| Expression            | Description                          |
-| :-------------------- | :----------------------------------- |
-| `<word>`              | match exactly `<word>`               |
-| `*`                   | match zero or more words             |
-| `#<number>`           | match exactly `<number>` words       |
-| `[<word> ... <word>]` | match any of word in the list        |
-| `@<word>`             | match a keyword from group `<word>`  |
-
 So, for example, the rule `"* I [love hate] #4 @family *"`
 can only match a phrase consisting of anything followed by the word `you`,
 followed by one of `love` or `hate`, followed by exactly two words,
 followed by any word of the group `family` followed by anything.
-This means that the phrase "I love to ski with my children on cold weekends"
+This means that the phrase `"I love to ski with my children on cold weekends"`
 matches into the list `["", "I", "love", "to ski with my", "children", "on cold weekends"]`.
 If a phrase does not match the rule structure, the program skips the rule.
 
 ### Reassembly rules
 
-A reassembly rule is a string where the special term `$<number>` may appear.
+There are three kinds of reassembly rule.
+It can be a newkey directive, `":newkey"`,
+telling the program to continue looking for keywords on the stack,
+it can point to another keyword, `"<word>"`,
+or it can be a proper reassembly rule,
+that is, a string where the special term `$<number>` may appear.
 The reassembly process substitutes `$<number>` by the `<number>`th element
-of the of the decomposed input.
-No length checks are made,
+of the decomposed input. No length checks are made,
 so you must guarantee that the decomposition has enough elements.
 
-| Expression          | Description                      |
-| :------------------ | :------------------------------- |
-| `<word> ... <word>` | return the phrase exactly        |
-| `$<number>`         | return `<number>`th word on list |
+| Expression                        | Description                                         |
+|:----------------------------------|:----------------------------------------------------|
+| `:newkey`                         | try rules for next keyword on the stack             |
+| `=<word>`                         | try rules for keyword `<word>`                      |
+| `<word> ... $<number> ... <word>` | interpolate `<number>`th word on the list on string |
 
 ## To do
 
@@ -130,10 +137,10 @@ so you must guarantee that the decomposition has enough elements.
 - parsers are space-insensitive but not output
 
 ### Original features not yet implemented
+- [x] Redirections such as `(=what)`
+- [x] `newkey` reassembly
+- [x] Match on groups
 - [ ] Memory
-- [ ] Redirections such as `(=what)`
-- [ ] `newkey` reassembly
-- [ ] Match on groups
 
 ## References
 <a id="1">[1]</a>
