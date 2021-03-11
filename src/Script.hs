@@ -24,7 +24,7 @@ data Script = Script { reflections :: M.Map T.Text T.Text
                      , keywords    :: M.Map T.Text Keyword
                      , defaultSays :: V.Vector T.Text
                      , greetings   :: V.Vector T.Text
-                     , groups      :: M.Map T.Text [T.Text]
+                     , groups      :: M.Map T.Text (V.Vector T.Text)
                      }
   deriving Show
 
@@ -36,7 +36,7 @@ data Keyword = Keyword { kwWord       :: T.Text
   deriving Show
 
 -- maybe I should delete it and use only keywords?
-data Rule = Rule [MatchingRule] (V.Vector [ReassemblyRule])
+data Rule = Rule DRule (V.Vector RRule)
   deriving Show
 
 getDecompRule (Rule x _) = x
@@ -50,10 +50,16 @@ data MatchingRule = MatchWord T.Text
                   | MatchGroup T.Text
   deriving Show
 
+data DRule = DRule [MatchingRule] | DKeyword T.Text
+  deriving Show
+
+
 data ReassemblyRule = ReturnText T.Text
                     | ReturnIndex Int
   deriving Show
 
+data RRule = RRule [ReassemblyRule] | RKeyword T.Text | RNewkey
+  deriving Show
 
 loadScript :: FilePath -> IO Script
 loadScript filename = do
@@ -64,20 +70,34 @@ loadScript filename = do
     Right script -> script
 
 findKeyword :: T.Text -> Script -> Maybe Keyword
-findKeyword w script = M.lookup (T.toLower w) (keywords script)
+findKeyword w script = genericLookup (T.toLower w) (keywords script)
 
 findReflection :: T.Text -> Script -> Maybe T.Text
-findReflection w script = M.lookup (T.toLower w) (reflections script)
+findReflection w script = genericLookup (T.toLower w) (reflections script)
+
+findGroup :: T.Text -> Script -> Maybe (V.Vector T.Text)
+findGroup w script = genericLookup (T.toLower w) (groups script)
 
 {-
   Megaparsec Parsers
 -}
 
-readDecompRule :: T.Text -> [MatchingRule]
-readDecompRule input = concat (parseMaybe parserMatchingRules input)
+readDRule :: T.Text -> DRule
+readDRule input = case parse parserDRule "" input of
+  Left e  -> error (errorBundlePretty e)
+  Right r -> r
 
-readReassemblyRule :: T.Text -> [ReassemblyRule]
-readReassemblyRule input = concat (parseMaybe parserReassemblyRules input)
+
+readRRule :: T.Text -> RRule
+readRRule input = case parse parserRRule "" input of
+  Left e  -> error (errorBundlePretty e)
+  Right r -> r
+
+parserDRule :: Parser DRule
+parserDRule = parserDKeyword <|> fmap DRule parserMatchingRules
+
+parserDKeyword :: Parser DRule
+parserDKeyword = DKeyword <$> (char '=' *> word <* eof)
 
 parserMatchingRules :: Parser [MatchingRule]
 parserMatchingRules = space *> some rule
@@ -89,6 +109,15 @@ parserMatchingRules = space *> some rule
    matchChoice = MatchChoice <$> brackets (some word)
    matchGroup  = MatchGroup  <$> (char '@' *> word)
    rule = choice [matchAll, matchN, matchChoice, matchGroup, matchWord]
+
+parserRRule :: Parser RRule
+parserRRule = parserRNewkey <|> parserRKeyword <|> fmap RRule parserReassemblyRules
+
+parserRKeyword :: Parser RRule
+parserRKeyword = RKeyword <$> (char '=' *> word <* eof)
+
+parserRNewkey:: Parser RRule
+parserRNewkey = RNewkey <$ (char ':' *> exactWord "newkey" <* eof)
 
 parserReassemblyRules :: Parser [ReassemblyRule]
 parserReassemblyRules = space *> some (returnIndex <|> returnText)
@@ -124,8 +153,8 @@ instance Aeson.FromJSON Keyword where
 
 instance Aeson.FromJSON Rule where
  parseJSON = Aeson.withObject "Rule" $ \ o -> do
-   decomp <- readDecompRule <$> o .: "decomposition"
-   recomps <- fmap readReassemblyRule <$> o .: "reassembly"
+   decomp <- readDRule <$> o .: "decomposition"
+   recomps <- fmap readRRule <$> o .: "reassembly"
    pure (Rule decomp recomps)
 
 

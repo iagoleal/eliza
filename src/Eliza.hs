@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 module Eliza (
     module Eliza
   , module Script
@@ -53,7 +54,7 @@ pickAny v = do
 
 -- Find Keywords
 scanKeywords :: T.Text -> State BotState ([T.Text], [Keyword])
-scanKeywords input = case MP.parse phrasesParser "" input of
+scanKeywords input = case parse phrasesParser "" input of
     Left _  -> pure ([], [])
     Right slices -> foldrM analyzeKeywords ([], []) slices
  where
@@ -74,63 +75,75 @@ scanKwChunk wrds = do
                     else loop ws (stack S.:|> kw) p
   pure (toList $ loop wrds S.Empty (-1))
 
--- Pattern match response
-disassemble :: [MatchingRule] -> T.Text -> Maybe [T.Text]
-disassemble rs input = let p = parserFromRule rs
-                       in  MP.parseMaybe p input
-
-reassemble :: [ReassemblyRule] -> [T.Text] -> T.Text
-reassemble rule ts = T.concat . fmap (assembler ts) $ rule
-  where
-   assembler _  (ReturnText  t) = t
-   assembler ws (ReturnIndex n) = ws !! (n-1)
-
-keywordsMatcher :: [Keyword] -> T.Text -> State BotState T.Text
-keywordsMatcher kws input = do
-  deft <- pickAny =<< gets (defaultSays . botScript)
-  foldrM matchedOrDefault deft kws
-  where
-   matchedOrDefault kw remainder = maybe (pure remainder) id
-                                         (tryDecompRules (kwRules kw) input)
-
-tryDecompRules :: Traversable t => t Rule -> T.Text -> Maybe (State BotState T.Text)
-tryDecompRules rules input = do
-  (rule, text) <- asum ruleResult
-  Just $ do
-    rRule <- pickAny (getRecompRules rule)
-    pure (reassemble rRule text)
-  where
-   ruleResult  = fmap (sequence . (id &&& disassembler)) rules
-   disassembler r = disassemble (getDecompRule r) input
-
 reflect :: [T.Text] -> State BotState [T.Text]
 reflect ws = do
   script <- botScript <$> get
   let exchange w = maybe w id (findReflection w script)
   pure (fmap exchange ws)
 
-parserFromRule :: [MatchingRule] -> Parser [T.Text]
-parserFromRule = sequence . unfoldr coalg
- where
-  coalg :: [MatchingRule] -> Maybe (Parser T.Text, [MatchingRule])
-  coalg [] = Nothing
-  coalg (rule:rs) = passOn (f rule)
-   where
-    passOn x = Just (x, rs)
-    f r = case whatParser r of
-      Just p  -> p
-      Nothing -> case listToMaybe rs of
-        Nothing -> T.pack <$> MP.manyTill (MP.anySingle) MP.eof
-        Just x  -> case whatParser x of
-          Just p  -> T.strip . T.pack <$> MP.manyTill MP.anySingle (MP.lookAhead p)
-          Nothing -> T.strip . T.pack <$> MP.manyTill MP.anySingle MP.eof
-  whatParser x = case x of
-      MatchWord   w  -> Just (exactWord w)
-      MatchChoice ws -> Just $ MP.choice (fmap exactWord ws)
-      MatchGroup  g  -> Nothing -- TODO implement group lookup with Script State
-      MatchN      n  -> Just (T.unwords <$> MP.count n word)
-      MatchAll       -> Nothing
+disassemble :: [MatchingRule] -> T.Text -> MaybeT (State BotState) [T.Text]
+disassemble rs input = do
+    p <- lift $ parserFromRule rs
+    liftMaybe $ parseMaybe p input
 
+reassemble :: [ReassemblyRule] -> [T.Text] -> MaybeT (State BotState) T.Text
+reassemble rs ts = pure $ T.concat (fmap (assembler ts) rs)
+ where
+  assembler _  (ReturnText  t) = t
+  assembler ws (ReturnIndex n) = ws !! (n-1)
+
+keywordsMatcher :: [Keyword] -> T.Text -> State BotState T.Text
+keywordsMatcher kws input =
+  let results = fmap (flip matchKeyword input) kws
+      defaultResponse = pickAny =<< gets (defaultSays . botScript)
+  in maybe defaultResponse pure =<< runMaybeT (asum results)
+
+matchKeyword :: Keyword -> T.Text -> MaybeT (State BotState) T.Text
+matchKeyword keyword input = let rules = kwRules keyword
+                             in  tryDecompRules rules input
+
+tryDecompRules :: Traversable t => t Rule -> T.Text -> MaybeT (State BotState) T.Text
+tryDecompRules rules input = asum (fmap (flip tryDecompRule input) rules)
+
+tryDecompRule :: Rule -> T.Text -> MaybeT (State BotState) T.Text
+tryDecompRule rule input =
+  case getDecompRule rule of
+    DKeyword t -> tryOtherKeyword t
+    DRule rs -> do
+      result <- disassemble rs input
+      recomp <- lift $ pickAny (getRecompRules rule)
+      case recomp of
+        RNewkey     -> mzero
+        RKeyword t  -> tryOtherKeyword t
+        RRule rrule -> reassemble rrule result
+ where
+  tryOtherKeyword t = do
+     script <- botScript <$> get
+     kw <- liftMaybe $ findKeyword t script
+     matchKeyword kw input
+
+parserFromRule :: [MatchingRule] -> State BotState (Parser [T.Text])
+parserFromRule = fmap sequence . unfoldrM coalg
+ where
+  coalg [] = pure Nothing
+  coalg (rule:rs) = fmap (\x -> Just (x,rs)) $ matchingRuleParser rule >>= \case
+    Just p -> pure p
+    Nothing -> case rs of
+      [] -> pure (T.pack <$> manyTill (anySingle) eof)
+      (x:_)  -> matchingRuleParser x >>= \case
+         Just p  -> pure (T.strip . T.pack <$> manyTill anySingle (lookAhead p))
+         Nothing -> pure (T.strip . T.pack <$> manyTill anySingle eof)
+
+matchingRuleParser :: MatchingRule -> State BotState (Maybe (Parser T.Text))
+matchingRuleParser x = runMaybeT $ case x of
+  MatchWord   w  -> pure (exactWord w)
+  MatchChoice ws -> pure $ choice (fmap exactWord ws)
+  MatchGroup  g  -> do
+    script <- botScript <$> get
+    grps   <- liftMaybe $ findGroup g script
+    pure $ choice (fmap exactWord grps)
+  MatchN      n  -> pure (T.unwords <$> count n word)
+  MatchAll       -> mzero
 
 {-
   Parser part
@@ -138,15 +151,12 @@ parserFromRule = sequence . unfoldr coalg
 
 -- Chunk a phrase into phrases made of words
 phrasesParser :: Parser [[T.Text]]
-phrasesParser = MP.sepEndBy phrase punctParser
- where phrase = MP.space *> MP.some (lexeme (T.pack <$> MP.some validChar))
+phrasesParser = sepEndBy phrase punctParser
+ where phrase = space *> some (lexeme (T.pack <$> some validChar))
 
 validChar :: Parser Char
-validChar = MP.satisfy (not . (\x -> isSeparator x || elem x puncts))
+validChar = satisfy (not . (\x -> isSeparator x || elem x puncts))
  where puncts = ".,!?;:" :: [Char]
 
 punctParser :: Parser Char
-punctParser = MP.satisfy ((flip elem) (".,!?;:" :: [Char]))
-
--- Apply parser and report error in case of failure
-parseReport p e t = maybe (error e) id (MP.parseMaybe p t)
+punctParser = satisfy ((flip elem) (".,!?;:" :: [Char]))
