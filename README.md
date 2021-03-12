@@ -32,7 +32,7 @@ The script to the bot is a JSON file and should be passed as the first command l
 eliza path/to/script.json
 ```
 
-If no argument is passed, the program defaults to emulate a Rogerian psychiatrist.
+If no argument is passed, the program defaults to (kind of) emulate a Rogerian psychiatrist.
 
 ## Writing a script
 
@@ -48,14 +48,14 @@ and `<number>` for a sequence of digits representing a positive number.
 
 A script consists of a single JSON object that must have the following fields:
 
-| Field           | Type             | Optional |
-|:----------------|:-----------------|:---------|
-| `"greetings"`   | Array of strings | No       |
-| `"goodbyes"`    | Array of strings | No       |
-| `"default"`     | Array of strings | No       |
-| `"groups"`      | Object           | Yes      |
-| `"reflections"` | Object           | Yes      |
-| `"keywords`"    | Array of objects | No       |
+| Field           | Type             | Optional                |
+|:----------------|:-----------------|:------------------------|
+| `"greetings"`   | Array of strings | No                      |
+| `"goodbyes"`    | Array of strings | No                      |
+| `"default"`     | Array of strings | No                      |
+| `"groups"`      | Object           | Yes (defaults to empty) |
+| `"reflections"` | Object           | Yes (defaults to empty) |
+| `"keywords"`    | Array of objects | No                      |
 
 The fields `"greetings"`, `"goodbyes"`, and `"default"`
 store, respectively, the program's possible initial messages,
@@ -74,15 +74,16 @@ Notice that this exchange happens _after_ the keyword scanning
 but _before_ testing the decomposition rules.
 
 The field `"keywords"` store an array of objects following a specific schema.
-Each of them must have three fields
 
-| Field        | Type             |
-|:-------------|:-----------------|
-| "keyword"    | String           |
-| "precedence" | Integer          |
-| "rules"      | Array of objects |
+| Field          | Type             | Optional                |
+|:---------------|:-----------------|:------------------------|
+| `"keyword"`    | String           | No                      |
+| `"precedence"` | Integer          | Yes (defaults to 0)     |
+| `"rules"`      | Array of objects | No                      |
+| `"memory"`     | Array of objects | Yes (defaults to empty) |
 
-Each rule is itself an object with with two fields:
+Both `"rules`" and `"memory"` store the same kind of object, herein called a rule.
+Each rule is itself an object with two fields:
 `"decomposition"` storing a string and
 `"reassembly"` storing an array of strings.
 These represent the decomposition rule and choices of reassembly rules
@@ -140,7 +141,7 @@ so you must guarantee that the decomposition has enough elements.
 - [x] Redirections such as `(=what)`
 - [x] `newkey` reassembly
 - [x] Match on groups
-- [ ] Memory
+- [x] Memory
 
 ## References
 <a id="1">[1]</a>
