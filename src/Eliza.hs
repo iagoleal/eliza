@@ -8,6 +8,7 @@ module Eliza (
 import qualified Data.Text       as T
 import qualified Data.Sequence   as S
 import qualified Data.Vector     as V
+import           Data.Sequence (Seq(..))
 
 import           Data.Foldable (toList, asum)
 import           System.Random
@@ -24,15 +25,17 @@ import Utils
 {-
   State
 -}
-data BotState = BotState { botScript :: Script
-                         , botSeed   :: StdGen
+data BotState = BotState { botScript     :: Script
+                         , botSeed       :: StdGen
+                         , botMemory     :: S.Seq T.Text
+                         , botMemoryProb :: Double
                          }
   deriving Show
 
 initBotState :: Script -> IO BotState
 initBotState script = do
   seed <- newStdGen
-  pure (BotState script seed)
+  pure (BotState script seed S.empty 0.0)
 
 -- The bot per se
 
@@ -42,15 +45,61 @@ eliza botState input = evalState (answer input) botState
 answer :: T.Text -> State BotState T.Text
 answer input = do
   (ws, kwStack) <- scanKeywords input
-  phrase <- fmap T.unwords (reflect ws)
-  keywordsMatcher kwStack phrase
+  phrase <- T.unwords <$> (reflect ws)
+  case kwStack of
+    [] -> maybeRemember >>= maybe pickDefaultSay pure
+    xs -> do
+      (commitToMemory (head xs) phrase)
+      keywordsMatcher xs phrase
+
+
+-- Random Picking
+
+liftRandom :: (Random a) => (StdGen -> (a, StdGen)) -> State BotState a
+liftRandom f = do
+  bot <- get
+  let (x, nseed) = f (botSeed bot)
+  put bot{botSeed = nseed}
+  pure x
+
+pickRandomR :: (Random a) => (a, a) -> State BotState a
+pickRandomR = liftRandom . randomR
+
+pickRandom :: (Random a) =>  State BotState a
+pickRandom = liftRandom  random
 
 pickAny :: V.Vector a -> State BotState a
-pickAny v = do
+pickAny v = pickRandomR (0, V.length v - 1) >>= V.indexM v
+
+pickGreeting :: State BotState T.Text
+pickGreeting = gets (greetings . botScript) >>= pickAny
+
+pickDefaultSay :: State BotState T.Text
+pickDefaultSay = gets (defaultSays . botScript) >>= pickAny
+
+-- Memory Related
+
+maybeRemember :: State BotState (Maybe T.Text)
+maybeRemember = do
   bot <- get
-  let (idx, nseed) = randomR (0, V.length v - 1) (botSeed bot)
-  put bot{botSeed = nseed}
-  V.indexM v idx
+  let memo = botMemory bot
+  p <- pickRandom
+  if p > botMemoryProb bot
+   then case memo of
+     S.Empty -> pure Nothing
+     h :<| t -> put bot{botMemory = t} >> pure (Just h)
+    else pure Nothing
+
+commitToMemory :: Keyword -> T.Text -> State BotState ()
+commitToMemory kw input =
+  let memo = kwMemory kw
+  in runMaybeT (tryDecompRules memo input) >>= maybe (pure ()) memorize
+
+memorize :: T.Text -> State BotState ()
+memorize t = do
+  bot <- get
+  let memo = botMemory bot
+  put bot{botMemory = memo :|> t}
 
 -- Find Keywords
 scanKeywords :: T.Text -> State BotState ([T.Text], [Keyword])
@@ -92,7 +141,7 @@ reassemble rs ts = pure $ T.concat (fmap (assembler ts) rs)
   assembler _  (ReturnText  t) = t
   assembler ws (ReturnIndex n) = ws !! (n-1)
 
-keywordsMatcher :: [Keyword] -> T.Text -> State BotState T.Text
+keywordsMatcher :: Traversable t => t Keyword -> T.Text -> State BotState T.Text
 keywordsMatcher kws input =
   let results = fmap (flip matchKeyword input) kws
       defaultResponse = pickAny =<< gets (defaultSays . botScript)

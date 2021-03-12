@@ -14,7 +14,7 @@ import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
 import qualified Data.Aeson as Aeson
-import           Data.Aeson ((.:))
+import           Data.Aeson ((.:), (.:?), (.!=))
 
 import Utils
 
@@ -32,6 +32,7 @@ data Script = Script { reflections :: M.Map T.Text T.Text
 data Keyword = Keyword { kwWord       :: T.Text
                        , kwPrecedence :: Int
                        , kwRules      :: V.Vector Rule
+                       , kwMemory     :: V.Vector Rule
                        }
   deriving Show
 
@@ -77,6 +78,9 @@ findReflection w script = genericLookup (T.toLower w) (reflections script)
 
 findGroup :: T.Text -> Script -> Maybe (V.Vector T.Text)
 findGroup w script = genericLookup (T.toLower w) (groups script)
+
+isMemorizable :: Keyword -> Bool
+isMemorizable = not . V.null . kwMemory
 
 {-
   Megaparsec Parsers
@@ -149,7 +153,12 @@ instance Aeson.FromJSON Keyword where
    word  <- T.toLower <$> v .: "keyword"
    prec  <- v .: "precedence"
    rules <- v .: "rules"
-   pure $ Keyword word prec rules
+   memo  <- v .:? "memory"     .!= V.empty
+   pure $ Keyword { kwWord       = word
+                  , kwPrecedence = prec
+                  , kwRules      = rules
+                  , kwMemory     = memo
+                  }
 
 instance Aeson.FromJSON Rule where
  parseJSON = Aeson.withObject "Rule" $ \ o -> do

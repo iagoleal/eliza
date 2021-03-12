@@ -529,6 +529,17 @@
             "Is it important to you that $2 $3?"
           ]
         }
+      ],
+      "memory": [
+        {
+          "decomposition": "* your *",
+          "reassembly": [
+            "Let's discuss further why your $3",
+            "Earlier you said your $3",
+            "But your $3",
+            "Does that have anything to do with the fact that your $3?"
+          ]
+        }
       ]
     },
     {
