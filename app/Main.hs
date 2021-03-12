@@ -1,8 +1,5 @@
 module Main where
 
-import qualified Data.Text       as T
-import qualified Data.Text.IO    as T
-
 import           System.Environment
 
 import CLI
@@ -13,5 +10,5 @@ main = do
   args <- getArgs
   script <- case args of
     [] -> pure defaultScript
-    (x:xs) -> loadScript x
+    (x:_) -> loadScript x
   cliRepl script

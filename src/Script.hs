@@ -7,6 +7,7 @@ import qualified Data.Text       as T
 import qualified Data.ByteString.Lazy as LB
 
 import           Data.Maybe
+import           Control.Monad
 import           Control.Arrow ((&&&))
 
 import           Text.Megaparsec
@@ -40,7 +41,9 @@ data Keyword = Keyword { kwWord       :: T.Text
 data Rule = Rule DRule (V.Vector RRule)
   deriving Show
 
+getDecompRule :: Rule -> DRule
 getDecompRule (Rule x _) = x
+getRecompRules :: Rule -> V.Vector RRule
 getRecompRules (Rule _ x) = x
 
 -- The possible ways to match a text
@@ -64,19 +67,19 @@ data RRule = RRule [ReassemblyRule] | RKeyword T.Text | RNewkey
 
 loadScript :: FilePath -> IO Script
 loadScript filename = do
-  json <- LB.readFile filename
-  pure $ case Aeson.eitherDecode json of
+  json <- Aeson.eitherDecodeFileStrict' filename
+  pure $ case json of
     Left  emsg   -> error $ "Failed to load file " <> filename
                           <> "\nError message: " <> emsg
     Right script -> script
 
-findKeyword :: T.Text -> Script -> Maybe Keyword
+findKeyword :: MonadPlus m => T.Text -> Script -> m Keyword
 findKeyword w script = genericLookup (T.toLower w) (keywords script)
 
-findReflection :: T.Text -> Script -> Maybe T.Text
+findReflection :: MonadPlus m => T.Text -> Script -> m T.Text
 findReflection w script = genericLookup (T.toLower w) (reflections script)
 
-findGroup :: T.Text -> Script -> Maybe (V.Vector T.Text)
+findGroup :: MonadPlus m => T.Text -> Script -> m (V.Vector T.Text)
 findGroup w script = genericLookup (T.toLower w) (groups script)
 
 isMemorizable :: Keyword -> Bool
@@ -136,11 +139,11 @@ parserReassemblyRules = space *> some (returnIndex <|> returnText)
 -}
 instance Aeson.FromJSON Script where
  parseJSON = Aeson.withObject "Script" $ \ v -> do
-   greetings   <- v .: "greetings"
-   defaultSays <- v .: "default"
-   groups      <- v .: "groups"
-   reflections <- v .: "reflections"
-   keywords    <- v .: "keywords"
+   greetings   <- v .:  "greetings"
+   defaultSays <- v .:  "default"
+   groups      <- v .:? "groups"      .!= M.empty
+   reflections <- v .:? "reflections" .!= M.empty
+   keywords    <- v .:  "keywords"
    pure $ Script { greetings   = greetings
                  , defaultSays = defaultSays
                  , groups      = groups
@@ -151,8 +154,8 @@ instance Aeson.FromJSON Script where
 instance Aeson.FromJSON Keyword where
  parseJSON = Aeson.withObject "Keyword" $ \ v -> do
    word  <- T.toLower <$> v .: "keyword"
-   prec  <- v .: "precedence"
-   rules <- v .: "rules"
+   prec  <- v .:? "precedence" .!= 0
+   rules <- v .:  "rules"
    memo  <- v .:? "memory"     .!= V.empty
    pure $ Keyword { kwWord       = word
                   , kwPrecedence = prec
@@ -162,9 +165,9 @@ instance Aeson.FromJSON Keyword where
 
 instance Aeson.FromJSON Rule where
  parseJSON = Aeson.withObject "Rule" $ \ o -> do
-   decomp <- readDRule <$> o .: "decomposition"
+   decomp  <- readDRule <$> o .: "decomposition"
    recomps <- fmap readRRule <$> o .: "reassembly"
-   pure (Rule decomp recomps)
+   pure $ Rule decomp recomps
 
 
 {- Default Script -}

@@ -15,8 +15,8 @@ import           System.Random
 import           Control.Monad.State
 import           Control.Monad.Trans.Maybe
 
-import Text.Megaparsec hiding (State)
-import Text.Megaparsec.Char
+import           Text.Megaparsec hiding (State)
+import           Text.Megaparsec.Char
 import           Data.Char (isSeparator)
 
 import Script
@@ -107,9 +107,8 @@ scanKeywords input = case parse phrasesParser "" input of
     Left _  -> pure ([], [])
     Right slices -> foldrM analyzeKeywords ([], []) slices
  where
-  analyzeKeywords phrase remainder = do
-    kwords <- scanKwChunk phrase
-    pure $ case kwords of
+  analyzeKeywords phrase remainder =
+    scanKwChunk phrase >>= pure . \case
       []  -> remainder
       kws -> (phrase, kws)
 
@@ -164,7 +163,7 @@ tryDecompRule rule input =
       case recomp of
         RNewkey     -> mzero
         RKeyword t  -> tryOtherKeyword t
-        RRule rrule -> reassemble rrule result
+        RRule rrules -> reassemble rrules result
  where
   tryOtherKeyword t = do
      script <- botScript <$> get
@@ -176,15 +175,15 @@ parserFromRule = fmap sequence . unfoldrM coalg
  where
   coalg [] = pure Nothing
   coalg (rule:rs) = fmap (\x -> Just (x,rs)) $ matchingRuleParser rule >>= \case
-    Just p -> pure p
+    Just p  -> pure p
     Nothing -> case rs of
-      [] -> pure (T.pack <$> manyTill (anySingle) eof)
-      (x:_)  -> matchingRuleParser x >>= \case
-         Just p  -> pure (T.strip . T.pack <$> manyTill anySingle (lookAhead p))
-         Nothing -> pure (T.strip . T.pack <$> manyTill anySingle eof)
+      []     -> pure $ T.pack <$> manyTill (anySingle) eof
+      (x:_)  -> matchingRuleParser x >>= pure . \case
+        Just p  -> T.strip . T.pack <$> manyTill anySingle (lookAhead p)
+        Nothing -> T.strip . T.pack <$> manyTill anySingle eof
 
 matchingRuleParser :: MatchingRule -> State BotState (Maybe (Parser T.Text))
-matchingRuleParser x = runMaybeT $ case x of
+matchingRuleParser = runMaybeT . \case
   MatchWord   w  -> pure (exactWord w)
   MatchChoice ws -> pure $ choice (fmap exactWord ws)
   MatchGroup  g  -> do
