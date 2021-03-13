@@ -3,8 +3,10 @@
     "Hello, how are you feeling today?",
     "How do you do? Please tell me your problem"
   ],
-  "goodbye": [
-    "Goodbye"
+  "goodbyes": [
+    "Goodbye",
+    "Till next time",
+    "Hope to see you again soon"
   ],
   "default": [
     "I am not sure I understand you fully",

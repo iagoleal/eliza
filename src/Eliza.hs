@@ -35,7 +35,7 @@ data BotState = BotState { botScript     :: Script
 initBotState :: Script -> IO BotState
 initBotState script = do
   seed <- newStdGen
-  pure (BotState script seed S.empty 0.0)
+  pure (BotState script seed S.empty 0.4)
 
 -- The bot per se
 
@@ -73,6 +73,9 @@ pickAny v = pickRandomR (0, V.length v - 1) >>= V.indexM v
 
 pickGreeting :: State BotState T.Text
 pickGreeting = gets (greetings . botScript) >>= pickAny
+
+pickGoodbye :: State BotState T.Text
+pickGoodbye = gets (goodbyes . botScript) >>= pickAny
 
 pickDefaultSay :: State BotState T.Text
 pickDefaultSay = gets (defaultSays . botScript) >>= pickAny

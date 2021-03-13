@@ -25,6 +25,7 @@ data Script = Script { reflections :: M.Map T.Text T.Text
                      , keywords    :: M.Map T.Text Keyword
                      , defaultSays :: V.Vector T.Text
                      , greetings   :: V.Vector T.Text
+                     , goodbyes    :: V.Vector T.Text
                      , groups      :: M.Map T.Text (V.Vector T.Text)
                      }
   deriving Show
@@ -140,11 +141,13 @@ parserReassemblyRules = space *> some (returnIndex <|> returnText)
 instance Aeson.FromJSON Script where
  parseJSON = Aeson.withObject "Script" $ \ v -> do
    greetings   <- v .:  "greetings"
+   goodbyes    <- v .:  "goodbyes"
    defaultSays <- v .:  "default"
    groups      <- v .:? "groups"      .!= M.empty
    reflections <- v .:? "reflections" .!= M.empty
    keywords    <- v .:  "keywords"
    pure $ Script { greetings   = greetings
+                 , goodbyes    = goodbyes
                  , defaultSays = defaultSays
                  , groups      = groups
                  , reflections = reflections
