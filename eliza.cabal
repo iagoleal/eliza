@@ -21,15 +21,6 @@ executable eliza
   build-depends:
      eliza
    , base >= 4.7 && < 5
-   , random
-   , transformers
-   , mtl
-   , text
-   , bytestring
-   , containers
-   , vector
-   , megaparsec
-   , aeson
   default-extensions: OverloadedStrings
   default-language: Haskell2010
 
@@ -53,5 +44,6 @@ library
    , vector
    , megaparsec
    , aeson
+   , ansi-terminal
   default-extensions: OverloadedStrings
   default-language: Haskell2010

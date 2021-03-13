@@ -1,7 +1,6 @@
 module Utils where
 
 import Control.Applicative hiding (some, many)
-import Control.Monad
 import Control.Monad.State
 
 import qualified Data.Text as T
@@ -31,6 +30,12 @@ hoistState = state . runState
 
 genericLookup :: (Alternative m, Ord k) => k -> M.Map k v -> m v
 genericLookup k m = liftMaybe $ M.lookup k m
+
+-- *Safe functions
+
+safeTextHead :: T.Text -> Maybe Char
+safeTextHead = fmap fst . T.uncons
+
 
 -- General Parsers
 
