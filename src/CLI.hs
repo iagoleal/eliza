@@ -100,10 +100,10 @@ cmdErrorMsg input = liftIO $ T.putStrLn $ "Sorry, non-recognized command: " <> i
 processInput :: T.Text -> UserInput
 processInput s = maybe (Input s) id $ MP.parseMaybe commands s
   where
-   cmdQuit  = CmdQuit  <$  parseCmd ["quit", "q", "bye"]
-   cmdHelp  = CmdHelp  <$  parseCmd ["help", "h"]
-   cmdLoad  = CmdLoad  <$> (parseCmd ["load", "l"] >> MP.some MP.anySingle)
-   cmdError = CmdError <$ (MP.space *> MP.char ':' >> MP.many MP.anySingle)
+   cmdQuit  = CmdQuit  <$  (parseCmd ["quit", "q", "bye"] <* MP.many MP.anySingle)
+   cmdHelp  = CmdHelp  <$  (parseCmd ["help", "h"] <* MP.many MP.anySingle)
+   cmdLoad  = CmdLoad  <$> (parseCmd ["load", "l"] *> MP.some MP.anySingle)
+   cmdError = CmdError <$ (MP.space *> MP.char ':' *> MP.many MP.anySingle)
    commands = MP.choice $ fmap MP.try [cmdHelp, cmdQuit, cmdLoad, cmdError]
 
 parseCmd :: (Foldable f, Functor f) => f T.Text -> Parser T.Text
