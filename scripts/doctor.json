@@ -55,7 +55,7 @@
   },
   "keywords": [
     {
-      "keyword": "sorry",
+      "keyword": ["sorry"],
       "precedence": 0,
       "rules": [
         {
@@ -70,7 +70,7 @@
       ]
     },
     {
-      "keyword": "remember",
+      "keyword": ["remember"],
       "precedence": 5,
       "rules": [
         {
@@ -103,7 +103,7 @@
       ]
     },
     {
-      "keyword": "if",
+      "keyword": ["if"],
       "precedence": 3,
       "rules": [
         {
@@ -118,11 +118,8 @@
       ]
     },
     {
-      "keyword": "dreamt",
+      "keyword": ["dreamt", "dreamed"],
       "precedence": 4,
-      "aliases": [
-        "dreamed"
-      ],
       "rules": [
         {
           "decomposition": "* you dreamt *",
@@ -137,11 +134,8 @@
       ]
     },
     {
-      "keyword": "dream",
+      "keyword": ["dream", "dreams"],
       "precedence": 3,
-      "aliases": [
-        "dreams"
-      ],
       "rules": [
         {
           "decomposition": "*",
@@ -156,11 +150,8 @@
       ]
     },
     {
-      "keyword": "perhaps",
+      "keyword": ["perhaps", "maybe"],
       "precedence": 0,
-      "aliases": [
-        "maybe"
-      ],
       "rules": [
         {
           "decomposition": "*",
@@ -175,7 +166,7 @@
       ]
     },
     {
-      "keyword": "name",
+      "keyword": ["name"],
       "precedence": 15,
       "rules": [
         {
@@ -188,14 +179,8 @@
       ]
     },
     {
-      "keyword": "xfremd",
+      "keyword": ["xfremd", "deutsch", "fran\u00e7ais", "italiano", "espa\u00f1ol"],
       "precedence": 0,
-      "aliases": [
-        "deutsch",
-        "fran\u00e7ais",
-        "italiano",
-        "espa\u00f1ol"
-      ],
       "rules": [
         {
           "decomposition": "*",
@@ -206,7 +191,7 @@
       ]
     },
     {
-      "keyword": "hello",
+      "keyword": ["hello"],
       "precedence": 0,
       "rules": [
         {
@@ -218,13 +203,8 @@
       ]
     },
     {
-      "keyword": "computer",
+      "keyword": ["computer", "machine", "machines", "computers"],
       "precedence": 50,
-      "aliases": [
-        "machine",
-        "machines",
-        "computers"
-      ],
       "rules": [
         {
           "decomposition": "*",
@@ -240,7 +220,7 @@
       ]
     },
     {
-      "keyword": "am",
+      "keyword": ["am"],
       "precedence": 0,
       "rules": [
         {
@@ -263,7 +243,7 @@
       ]
     },
     {
-      "keyword": "are",
+      "keyword": ["are"],
       "precedence": 0,
       "rules": [
         {
@@ -288,7 +268,7 @@
       ]
     },
     {
-      "keyword": "your",
+      "keyword": ["your"],
       "precedence": 0,
       "rules": [
         {
@@ -303,11 +283,8 @@
       ]
     },
     {
-      "keyword": "was",
+      "keyword": ["was", "were"],
       "precedence": 2,
-      "aliases": [
-        "were"
-      ],
       "rules": [
         {
           "decomposition": "* was you *",
@@ -347,7 +324,7 @@
       ]
     },
     {
-      "keyword": "i",
+      "keyword": ["i"],
       "precedence": 0,
       "rules": [
         {
@@ -446,7 +423,7 @@
       ]
     },
     {
-      "keyword": "you",
+      "keyword": ["you"],
       "precedence": 0,
       "rules": [
         {
@@ -488,11 +465,8 @@
       ]
     },
     {
-      "keyword": "yes",
+      "keyword": ["yes", "certainly"],
       "precedence": 0,
-      "aliases": [
-        "certainly"
-      ],
       "rules": [
         {
           "decomposition": "*",
@@ -506,7 +480,7 @@
       ]
     },
     {
-      "keyword": "no",
+      "keyword": ["no"],
       "precedence": 0,
       "rules": [
         {
@@ -521,7 +495,7 @@
       ]
     },
     {
-      "keyword": "my",
+      "keyword": ["my"],
       "precedence": 2,
       "rules": [
         {
@@ -556,7 +530,7 @@
       ]
     },
     {
-      "keyword": "can",
+      "keyword": ["can"],
       "precedence": 0,
       "rules": [
         {
@@ -579,12 +553,8 @@
       ]
     },
     {
-      "keyword": "what",
+      "keyword": ["what", "how", "when"],
       "precedence": 0,
-      "aliases": [
-        "how",
-        "when"
-      ],
       "rules": [
         {
           "decomposition": "*",
@@ -603,7 +573,7 @@
       ]
     },
     {
-      "keyword": "because",
+      "keyword": ["because"],
       "precedence": 0,
       "rules": [
         {
@@ -618,7 +588,7 @@
       ]
     },
     {
-      "keyword": "why",
+      "keyword": ["why"],
       "precedence": 0,
       "rules": [
         {
@@ -650,13 +620,8 @@
       ]
     },
     {
-      "keyword": "everyone",
+      "keyword": ["everyone", "everybody", "nobody", "noone"],
       "precedence": 2,
-      "aliases": [
-        "everybody",
-        "nobody",
-        "noone"
-      ],
       "rules": [
         {
           "decomposition": "* [everyone everybody nobody noone] *",
@@ -675,7 +640,7 @@
       ]
     },
     {
-      "keyword": "always",
+      "keyword": ["always"],
       "precedence": 1,
       "rules": [
         {
@@ -690,7 +655,7 @@
       ]
     },
     {
-      "keyword": "like",
+      "keyword": ["like"],
       "precedence": 10,
       "rules": [
         {
@@ -708,11 +673,7 @@
       ]
     },
     {
-      "keyword": "dit",
-      "aliases": [
-        "alike",
-        "same"
-      ],
+      "keyword": ["dit", "alike", "same"],
       "precedence": 0,
       "rules": [
         {

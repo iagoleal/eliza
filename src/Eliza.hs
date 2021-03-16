@@ -158,19 +158,18 @@ tryDecompRules rules input = asum (fmap (flip tryDecompRule input) rules)
 
 tryDecompRule :: Rule -> T.Text -> MaybeT (State BotState) T.Text
 tryDecompRule rule input =
-  case getDecompRule rule of
-    DKeyword t -> tryOtherKeyword t
-    DRule rs -> do
-      result <- disassemble rs input
-      recomp <- lift $ pickAny (getRecompRules rule)
-      case recomp of
-        RNewkey     -> mzero
-        RKeyword t  -> tryOtherKeyword t
-        RRule rrules -> reassemble rrules result
+  let mrules = getMatchingRules rule
+  in do
+    result <- disassemble mrules input
+    recomp <- lift $ pickAny (getRecompRules rule)
+    case recomp of
+      RNewkey      -> mzero
+      RKeyword t   -> tryOtherKeyword t
+      RRule rrules -> reassemble rrules result
  where
   tryOtherKeyword t = do
      script <- botScript <$> get
-     kw <- liftMaybe $ findKeyword t script
+     kw <- findKeyword t script
      matchKeyword kw input
 
 parserFromRule :: [MatchingRule] -> State BotState (Parser [T.Text])
