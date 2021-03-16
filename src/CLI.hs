@@ -6,6 +6,7 @@ import           System.IO
 import           System.Console.ANSI
 
 import Control.Monad.State
+import Control.Concurrent (threadDelay)
 
 import qualified Text.Megaparsec as MP
 import qualified Text.Megaparsec.Char as MP
@@ -33,7 +34,7 @@ repl :: StateT BotState IO ()
 repl = do
   input <- lift cliInput
   case processInput input of
-    CmdQuit  -> hoistState pickGoodbye >>= lift . cliOutput
+    CmdQuit  -> hoistState pickGoodbye >>= cliOutput
     CmdError -> cmdErrorMsg input >> repl
     CmdHelp  -> helpMsg           >> repl
     CmdLoad file -> do
@@ -42,8 +43,22 @@ repl = do
       repl
     Input t  -> do
       response <- hoistState (answer t)
-      lift (cliOutput response)
+      disappearingPrint (typingTime averageWPS response) "Eliza is typing..."
+      cliOutput response
       repl
+
+averageWPS :: Int
+averageWPS = 80
+
+typingTime :: Int -> T.Text -> Int
+typingTime wps text = 10^6 * (T.length text) `quot` wps
+
+disappearingPrint :: MonadIO m => Int -> T.Text -> m ()
+disappearingPrint time phrase = liftIO $ do
+  T.putStr phrase
+  threadDelay time
+  clearLine
+  setCursorColumn 0
 
 initialMsg :: MonadIO m => m ()
 initialMsg = liftIO $ do
@@ -77,9 +92,7 @@ cliInput = liftIO $ do
   pure input
 
 cliOutput :: MonadIO m => T.Text -> m ()
-cliOutput out = liftIO $ do
-  yellow "eliza> "
-  T.putStrLn (out <> "\n")
+cliOutput out = liftIO $ yellow "eliza> " >> T.putStrLn (out <> "\n")
 
 yellow :: MonadIO m => T.Text -> m ()
 yellow = putStrAnsi [ SetColor Foreground Vivid Yellow]
@@ -95,7 +108,10 @@ putStrAnsi :: MonadIO m => [SGR] -> T.Text -> m ()
 putStrAnsi l s = liftIO $ setSGR l >> T.putStr s >> setSGR [Reset]
 
 cmdErrorMsg :: MonadIO m => T.Text -> m ()
-cmdErrorMsg input = liftIO $ T.putStrLn $ "Sorry, non-recognized command: " <> input
+cmdErrorMsg input = liftIO $ do
+  T.putStr "Sorry, non-recognized command: "
+  cyan (input <> "\n")
+
 
 processInput :: T.Text -> UserInput
 processInput s = maybe (Input s) id $ MP.parseMaybe commands s
