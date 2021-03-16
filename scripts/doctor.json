@@ -90,7 +90,14 @@
             "Did you think I would forget $5?",
             "Why do you think I should recall $5 now?",
             "What about $5?",
+            "=what",
             "You mentioned $5"
+          ]
+        },
+        {
+          "decomposition": "*",
+          "reassembly": [
+            ":newkey"
           ]
         }
       ]
@@ -122,7 +129,9 @@
           "reassembly": [
             "Really, $4?",
             "Have you ever fantasied $4 while you were awake?",
-            "Have you dreamt $4 before?"
+            "Have you dreamt $4 before?",
+            "=dream",
+            ":newkey"
           ]
         }
       ]
@@ -140,7 +149,8 @@
             "What does that dream suggest to you?",
             "Do you dream often?",
             "What people appear in your dreams?",
-            "Don't you believe that dream has something to do with your problem?"
+            "Don't you believe that dream has something to do with your problem?",
+            ":newkey"
           ]
         }
       ]
@@ -182,9 +192,9 @@
       "precedence": 0,
       "aliases": [
         "deutsch",
-        "français",
+        "fran\u00e7ais",
         "italiano",
-        "español"
+        "espa\u00f1ol"
       ],
       "rules": [
         {
@@ -198,7 +208,6 @@
     {
       "keyword": "hello",
       "precedence": 0,
-      "aliases": [],
       "rules": [
         {
           "decomposition": "*",
@@ -233,7 +242,6 @@
     {
       "keyword": "am",
       "precedence": 0,
-      "aliases": [],
       "rules": [
         {
           "decomposition": "* are you *",
@@ -241,7 +249,8 @@
             "Do you believe you are $4?",
             "Would you want to be $4?",
             "You wish I would tell you you are $4",
-            "What would it mean if you were $4?"
+            "What would it mean if you were $4?",
+            "=what"
           ]
         },
         {
@@ -256,7 +265,6 @@
     {
       "keyword": "are",
       "precedence": 0,
-      "aliases": [],
       "rules": [
         {
           "decomposition": "* are i *",
@@ -264,7 +272,8 @@
             "Why are you interested in whether I am $4 or not?",
             "Would you prefer if I weren't $4?",
             "Perhaps I am $4 in your fantasies",
-            "Do you sometimes think I am $4?"
+            "Do you sometimes think I am $4?",
+            "=what"
           ]
         },
         {
@@ -281,7 +290,6 @@
     {
       "keyword": "your",
       "precedence": 0,
-      "aliases": [],
       "rules": [
         {
           "decomposition": "* my *",
@@ -308,7 +316,8 @@
             "Do you think you were $4?",
             "Were you $4?",
             "What would it mean if you were $4?",
-            "What does '$4' suggest to you?"
+            "What does '$4' suggest to you?",
+            "=what"
           ]
         },
         {
@@ -328,13 +337,18 @@
             "Perhaps I was $4",
             "What if I had been $4?"
           ]
+        },
+        {
+          "decomposition": "*",
+          "reassembly": [
+            ":newkey"
+          ]
         }
       ]
     },
     {
       "keyword": "i",
       "precedence": 0,
-      "aliases": [],
       "rules": [
         {
           "decomposition": "* you [want need] *",
@@ -359,7 +373,7 @@
         {
           "decomposition": "* you was *",
           "reassembly": [
-            "Tell me more"
+            "=was"
           ]
         },
         {
@@ -373,7 +387,7 @@
         {
           "decomposition": "* you * @belief * I *",
           "reassembly": [
-            "Tell me more"
+            "=you"
           ]
         },
         {
@@ -434,12 +448,11 @@
     {
       "keyword": "you",
       "precedence": 0,
-      "aliases": [],
       "rules": [
         {
           "decomposition": "* i remind you of *",
           "reassembly": [
-            "Why do you think so?"
+            "=dit"
           ]
         },
         {
@@ -495,7 +508,6 @@
     {
       "keyword": "no",
       "precedence": 0,
-      "aliases": [],
       "rules": [
         {
           "decomposition": "*",
@@ -511,7 +523,6 @@
     {
       "keyword": "my",
       "precedence": 2,
-      "aliases": [],
       "rules": [
         {
           "decomposition": "* your * @family *",
@@ -528,7 +539,7 @@
             "Your $3",
             "Why do you say your $3?",
             "Does that suggest anything else which belongs to you?",
-            "Is it important to you that $2 $3?"
+            "Is it important to you that $1 your $3?"
           ]
         }
       ],
@@ -547,7 +558,6 @@
     {
       "keyword": "can",
       "precedence": 0,
-      "aliases": [],
       "rules": [
         {
           "decomposition": "* can i *",
@@ -562,7 +572,8 @@
           "reassembly": [
             "Whether or not you can $4 depends on you more than me",
             "Do you want to be able to $4?",
-            "Perhaps you don't want to $4"
+            "Perhaps you don't want to $4",
+            "=what"
           ]
         }
       ]
@@ -594,7 +605,6 @@
     {
       "keyword": "because",
       "precedence": 0,
-      "aliases": [],
       "rules": [
         {
           "decomposition": "*",
@@ -610,7 +620,6 @@
     {
       "keyword": "why",
       "precedence": 0,
-      "aliases": [],
       "rules": [
         {
           "decomposition": "* why don't i *",
@@ -618,7 +627,8 @@
             "Do you believe I don't $5?",
             "Perhaps I will $5 in good time",
             "Should you $5 yourself?",
-            "You want me to $5"
+            "You want me to $5",
+            "=what"
           ]
         },
         {
@@ -627,7 +637,14 @@
             "Do you think you should be able to $5?",
             "Do you want to be able to $5?",
             "Do you believe this will help you to $5?",
-            "Have you any idea why you can't $5?"
+            "Have you any idea why you can't $5?",
+            "=what"
+          ]
+        },
+        {
+          "decomposition": "*",
+          "reassembly": [
+            "=what"
           ]
         }
       ]
@@ -660,7 +677,6 @@
     {
       "keyword": "always",
       "precedence": 1,
-      "aliases": [],
       "rules": [
         {
           "decomposition": "*",
@@ -676,29 +692,28 @@
     {
       "keyword": "like",
       "precedence": 10,
-      "aliases": [],
       "rules": [
         {
           "decomposition": "* [am is are was] * like *",
           "reassembly": [
-            "In what way?"
+            "=dit"
           ]
         },
         {
           "decomposition": "*",
           "reassembly": [
-            "Tell me more"
+            ":newkey"
           ]
         }
       ]
     },
     {
       "keyword": "dit",
-      "precedence": 10,
       "aliases": [
         "alike",
         "same"
       ],
+      "precedence": 0,
       "rules": [
         {
           "decomposition": "*",
