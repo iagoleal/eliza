@@ -56,6 +56,7 @@ typingTime wps text = 10^6 * (T.length text) `quot` wps
 disappearingPrint :: MonadIO m => Int -> T.Text -> m ()
 disappearingPrint time phrase = liftIO $ do
   T.putStr phrase
+  hFlush stdout
   threadDelay time
   clearLine
   setCursorColumn 0

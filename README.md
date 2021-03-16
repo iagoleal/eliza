@@ -132,17 +132,6 @@ so you must guarantee that the decomposition has enough elements.
 | `=<word>`                         | try rules for keyword `<word>`                      |
 | `<word> ... $<number> ... <word>` | interpolate `<number>`th word on the list on string |
 
-## To do
-
-### Bug tracker
-- parsers are space-insensitive but not output
-
-### Original features not yet implemented
-- [x] Redirections such as `(=what)`
-- [x] `newkey` reassembly
-- [x] Match on groups
-- [x] Memory
-
 ## References
 <a id="1">[1]</a>
 Joseph Weizenbaum. 1966. ELIZA — A Computer Program for the Study of Natural Language Communication Between Man and Machine. Commun. ACM 9, 1 (Jan. 1966), 36–45. DOI: https://doi.org/10.1145/365153.365168

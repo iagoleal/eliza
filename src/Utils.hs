@@ -12,33 +12,40 @@ import qualified Text.Megaparsec.Char.Lexer as L
 
 import qualified Data.Map as M
 
--- Monadic recursion schemes
+-- * Monadic recursion schemes
+
+-- | Monadic version of 'foldr', the list catamorphism.
+-- Folds from the right.
 foldrM :: (Foldable t, Monad m) => (a -> b -> m b) -> b -> t a -> m b
 foldrM f d = foldr (\x y -> f x =<< y) (pure d)
 
+-- | Monadic version of 'unfoldr', the list anamorphism.
 unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> m [a]
 unfoldrM f seed =
   f seed >>= maybe (pure []) (\(a,b) -> pure . (a:) =<< unfoldrM f b)
 
--- Lift Monads
+-- * Lift Monads
 
+-- | Generalize a 'Maybe' value into any "Alternative'.
 liftMaybe :: (Alternative m) => Maybe a -> m a
 liftMaybe = maybe empty pure
 
-hoistState :: State s a -> StateT s IO a
+-- | Generalize a 'State' into any 'MonadState'.
+hoistState :: MonadState s m => State s a -> m a
 hoistState = state . runState
 
 genericLookup :: (Alternative m, Ord k) => k -> M.Map k v -> m v
 genericLookup k m = liftMaybe $ M.lookup k m
 
--- *Safe functions
+-- * Safe versions of functions
 
 safeTextHead :: T.Text -> Maybe Char
 safeTextHead = fmap fst . T.uncons
 
 
--- General Parsers
+-- * General Parsers
 
+-- | Megaparsec Parser used throught this program
 type Parser = Parsec Void T.Text
 
 spaceConsumer :: Parser ()
