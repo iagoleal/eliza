@@ -122,7 +122,7 @@ parserReassemblyRules = space *> some (returnIndex <|> returnText)
    returnIndex, returnText :: Parser ReassemblyRule
    returnIndex = ReturnIndex <$> (char '$' *> L.decimal)
    returnText  = ReturnText . T.pack <$> some validChar
-   validChar   = satisfy (not . (=='$'))
+   validChar   = satisfy (/='$')
 
 -- * Read from JSON
 
@@ -149,7 +149,7 @@ instance Aeson.FromJSON Script where
      , defaultSays = defaultSays
      , groups      = groups
      , reflections = reflections
-     , keywords    = M.fromList . concat . fmap matchAliases $ (keywords :: [Keyword])
+     , keywords    = M.fromList . concatMap matchAliases $ (keywords :: [Keyword])
      }
   where
    matchAliases k = [(w, k) | w <- kwWords k]

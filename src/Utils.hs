@@ -22,7 +22,7 @@ foldrM f d = foldr (\x y -> f x =<< y) (pure d)
 -- | Monadic version of 'unfoldr', the list anamorphism.
 unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> m [a]
 unfoldrM f seed =
-  f seed >>= maybe (pure []) (\(a,b) -> pure . (a:) =<< unfoldrM f b)
+  f seed >>= maybe (pure []) (\(a,b) -> (a:) <$> unfoldrM f b)
 
 -- * Lift Monads
 

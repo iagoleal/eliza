@@ -51,7 +51,7 @@ averageWPS :: Int
 averageWPS = 80
 
 typingTime :: Int -> T.Text -> Int
-typingTime wps text = 10^6 * (T.length text) `quot` wps
+typingTime wps text = 10^6 * T.length text `quot` wps
 
 disappearingPrint :: MonadIO m => Int -> T.Text -> m ()
 disappearingPrint time phrase = liftIO $ do
@@ -70,7 +70,6 @@ initialMsg = liftIO $ do
   T.putStr "For more info, enter '"
   cyan ":help"
   T.putStr "'\n\n"
- where
 
 helpMsg :: MonadIO m => m ()
 helpMsg = liftIO $ do
@@ -82,7 +81,6 @@ helpMsg = liftIO $ do
   cyan "  :quit"
   T.putStrLn "\t    exit Eliza"
   T.putStrLn ""
- where
 
 cliInput :: MonadIO m => m T.Text
 cliInput = liftIO $ do
@@ -124,5 +122,5 @@ processInput s = maybe (Input s) id $ MP.parseMaybe commands s
    commands = MP.choice $ fmap MP.try [cmdHelp, cmdQuit, cmdLoad, cmdError]
 
 parseCmd :: (Foldable f, Functor f) => f T.Text -> Parser T.Text
-parseCmd xs = MP.space *> MP.char ':' *> (MP.choice $ fmap exactWord xs)
+parseCmd xs = MP.space *> MP.char ':' *> MP.choice (fmap exactWord xs)
 

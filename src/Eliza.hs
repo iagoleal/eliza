@@ -37,50 +37,25 @@ initBotState script = do
   seed <- newStdGen
   pure (BotState script seed S.empty 0.4)
 
--- The bot per se
+-- *The bot per se
 
 eliza :: BotState -> (T.Text -> T.Text)
 eliza botState input = evalState (answer input) botState
 
+-- |Bot main procedure.
+-- Receive some input and answer it following the script.
 answer :: T.Text -> State BotState T.Text
 answer input = do
   (ws, kwStack) <- scanKeywords input
-  phrase <- T.unwords <$> (reflect ws)
+  phrase <- T.unwords <$> reflect ws
   case kwStack of
     [] -> maybeRemember >>= maybe pickDefaultSay pure
     xs -> do
-      (commitToMemory (head xs) phrase)
+      commitToMemory (head xs) phrase
       keywordsMatcher xs phrase
 
 
--- Random Picking
-
-liftRandom :: (Random a) => (StdGen -> (a, StdGen)) -> State BotState a
-liftRandom f = do
-  bot <- get
-  let (x, nseed) = f (botSeed bot)
-  put bot{botSeed = nseed}
-  pure x
-
-pickRandomR :: (Random a) => (a, a) -> State BotState a
-pickRandomR = liftRandom . randomR
-
-pickRandom :: (Random a) =>  State BotState a
-pickRandom = liftRandom  random
-
-pickAny :: V.Vector a -> State BotState a
-pickAny v = pickRandomR (0, V.length v - 1) >>= V.indexM v
-
-pickGreeting :: State BotState T.Text
-pickGreeting = gets (greetings . botScript) >>= pickAny
-
-pickGoodbye :: State BotState T.Text
-pickGoodbye = gets (goodbyes . botScript) >>= pickAny
-
-pickDefaultSay :: State BotState T.Text
-pickDefaultSay = gets (defaultSays . botScript) >>= pickAny
-
--- Memory Related
+-- **Memory Related
 
 maybeRemember :: State BotState (Maybe T.Text)
 maybeRemember = do
@@ -117,7 +92,7 @@ scanKeywords input = case parse phrasesParser "" input of
 
 scanKwChunk :: [T.Text] -> State BotState [Keyword]
 scanKwChunk wrds = do
-  script <- botScript <$> get
+  script <- gets botScript
   let loop [] stack _ = stack
       loop (w:ws) stack p = case findKeyword w script of
         Nothing -> loop ws stack p
@@ -128,30 +103,30 @@ scanKwChunk wrds = do
 
 reflect :: [T.Text] -> State BotState [T.Text]
 reflect ws = do
-  script <- botScript <$> get
+  script <- gets botScript
   let exchange w = maybe w id (findReflection w script)
   pure (fmap exchange ws)
 
 disassemble :: [MatchingRule] -> T.Text -> MaybeT (State BotState) [T.Text]
 disassemble rs input = do
-    p <- lift $ parserFromRule rs
-    liftMaybe $ parseMaybe p input
+  p <- lift $ parserFromRule rs
+  liftMaybe $ parseMaybe p input
 
 reassemble :: [ReassemblyRule] -> [T.Text] -> MaybeT (State BotState) T.Text
 reassemble rs ts = pure $ T.concat (fmap (assembler ts) rs)
  where
-  assembler _  (ReturnText  t) = t
-  assembler ws (ReturnIndex n) = ws !! (n-1)
+  assembler ws = \case
+    ReturnText  t -> t
+    ReturnIndex n -> ws !! (n-1)
 
 keywordsMatcher :: Traversable t => t Keyword -> T.Text -> State BotState T.Text
 keywordsMatcher kws input =
   let results = fmap (flip matchKeyword input) kws
-      defaultResponse = pickAny =<< gets (defaultSays . botScript)
+      defaultResponse = pickDefaultSay
   in maybe defaultResponse pure =<< runMaybeT (asum results)
 
 matchKeyword :: Keyword -> T.Text -> MaybeT (State BotState) T.Text
-matchKeyword keyword input = let rules = kwRules keyword
-                             in  tryDecompRules rules input
+matchKeyword keyword = tryDecompRules (kwRules keyword)
 
 tryDecompRules :: Traversable t => t Rule -> T.Text -> MaybeT (State BotState) T.Text
 tryDecompRules rules input = asum (fmap (flip tryDecompRule input) rules)
@@ -168,9 +143,11 @@ tryDecompRule rule input =
       RRule rrules -> reassemble rrules result
  where
   tryOtherKeyword t = do
-     script <- botScript <$> get
+     script <- gets botScript
      kw <- findKeyword t script
      matchKeyword kw input
+
+-- *Generate decomposition parsers
 
 parserFromRule :: [MatchingRule] -> State BotState (Parser [T.Text])
 parserFromRule = fmap sequence . unfoldrM coalg
@@ -179,7 +156,7 @@ parserFromRule = fmap sequence . unfoldrM coalg
   coalg (rule:rs) = fmap (\x -> Just (x,rs)) $ matchingRuleParser rule >>= \case
     Just p  -> pure p
     Nothing -> case rs of
-      []     -> pure $ T.pack <$> manyTill (anySingle) eof
+      []     -> pure $ T.pack <$> manyTill anySingle eof
       (x:_)  -> matchingRuleParser x >>= pure . \case
         Just p  -> T.strip . T.pack <$> manyTill anySingle (lookAhead p)
         Nothing -> T.strip . T.pack <$> manyTill anySingle eof
@@ -189,17 +166,13 @@ matchingRuleParser = runMaybeT . \case
   MatchWord   w  -> pure (exactWord w)
   MatchChoice ws -> pure $ choice (fmap exactWord ws)
   MatchGroup  g  -> do
-    script <- botScript <$> get
+    script <- gets botScript
     grps   <- liftMaybe $ findGroup g script
     pure $ choice (fmap exactWord grps)
   MatchN      n  -> pure (T.unwords <$> count n word)
   MatchAll       -> mzero
 
-{-
-  Parser part
--}
-
--- Chunk a phrase into phrases made of words
+-- |Chunk a phrase into phrases made of words
 phrasesParser :: Parser [[T.Text]]
 phrasesParser = sepEndBy phrase punctParser
  where phrase = space *> some (lexeme (T.pack <$> some validChar))
@@ -209,4 +182,31 @@ validChar = satisfy (not . (\x -> isSeparator x || elem x puncts))
  where puncts = ".,!?;:" :: [Char]
 
 punctParser :: Parser Char
-punctParser = satisfy ((flip elem) (".,!?;:" :: [Char]))
+punctParser = satisfy (flip elem (".,!?;:" :: [Char]))
+
+-- *Random Picking
+
+liftRandom :: (Random a) => (StdGen -> (a, StdGen)) -> State BotState a
+liftRandom f = do
+  bot <- get
+  let (x, nseed) = f (botSeed bot)
+  put bot{botSeed = nseed}
+  pure x
+
+pickRandomR :: (Random a) => (a, a) -> State BotState a
+pickRandomR = liftRandom . randomR
+
+pickRandom :: (Random a) =>  State BotState a
+pickRandom = liftRandom  random
+
+pickAny :: V.Vector a -> State BotState a
+pickAny v = pickRandomR (0, V.length v - 1) >>= V.indexM v
+
+pickGreeting :: State BotState T.Text
+pickGreeting = gets (greetings . botScript) >>= pickAny
+
+pickGoodbye :: State BotState T.Text
+pickGoodbye = gets (goodbyes . botScript) >>= pickAny
+
+pickDefaultSay :: State BotState T.Text
+pickDefaultSay = gets (defaultSays . botScript) >>= pickAny
