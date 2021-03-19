@@ -84,7 +84,7 @@ helpMsg = liftIO $ do
 
 cliInput :: MonadIO m => m T.Text
 cliInput = liftIO $ do
-  green ">>> "
+  green ">>>>>> "
   hFlush stdout
   input <- T.getLine
   T.putStrLn ""
@@ -94,7 +94,7 @@ cliOutput :: MonadIO m => T.Text -> m ()
 cliOutput out = liftIO $ yellow "eliza> " >> T.putStrLn (out <> "\n")
 
 yellow :: MonadIO m => T.Text -> m ()
-yellow = putStrAnsi [ SetColor Foreground Vivid Yellow]
+yellow = putStrAnsi [SetColor Foreground Vivid Yellow]
 
 green :: MonadIO m => T.Text -> m ()
 green = putStrAnsi [ SetColor Foreground Vivid Green
