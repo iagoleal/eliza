@@ -7,6 +7,17 @@
 This is a Haskell implementation of Joseph Weizenbaum's classic chatbot ELIZA,
 based upon the description found on his 1966 ACM paper [[1]](#1).
 
+The idea for ELIZA comes from the 60s, the golden era of symbolic artificial intelligence.
+As such, its answers are based on textual pattern matching,
+differently from the more modern chatbots based on machine learning.
+Nevertheless, it was still an interesting project for putting Haskell's parsing capabilities into practice
+and the result can be pretty fun.
+If you are stressed while debuging some code on the middle of the night,
+try starting an `eliza` REPL and have some chat. 
+
+Since people say an asciinema is worth more than a thousand words...
+[![asciicast](https://asciinema.org/a/400665.svg)](https://asciinema.org/a/400665)
+
 # Installation
 
 The easiest and recommended way to install s using [stack](https://docs.haskellstack.org/en/stable/README/).
