@@ -1,4 +1,4 @@
-module CLI where
+module CLI (cliRepl) where
 
 import qualified Data.Text       as T
 import qualified Data.Text.IO    as T
@@ -14,25 +14,36 @@ import qualified Text.Megaparsec.Char as MP
 import Eliza
 import Utils
 
-data UserInput = CmdQuit
-               | CmdError
-               | CmdHelp
-               | CmdLoad FilePath
-               | Input   T.Text
+-- | Which kind of input did the user enter
+data UserInput = CmdQuit          -- ^ User asked to close program
+               | CmdError         -- ^ Input started with @:@ but is not a recognized command
+               | CmdHelp          -- ^ User asked to see help message
+               | CmdLoad FilePath -- ^ User asked to load script from a file
+               | Input   T.Text   -- ^ Normal user input
   deriving Show
 
+-- * The Command Line Interface
+
+{- | Start an eliza REPL on the command line.
+
+  Accepts both real inputs and commands prefixed with a @:@.
+
+  This function is supposed to run indefinitely
+  or until the user explicitly quits the program.
+-}
 cliRepl :: Script -> IO ()
 cliRepl script = do
   initialMsg
   bot <- initBotState script
   flip evalStateT bot $ do
-    greet  <- hoistState pickGreeting
-    lift (cliOutput greet)
+    greet <- hoistState pickGreeting
+    liftIO (cliOutput greet)
     repl
 
+-- | The main loop for 'cliRepl'.
 repl :: StateT BotState IO ()
 repl = do
-  input <- lift cliInput
+  input <- liftIO cliInput
   case processInput input of
     CmdQuit  -> hoistState pickGoodbye >>= cliOutput
     CmdError -> cmdErrorMsg input >> repl
@@ -43,45 +54,16 @@ repl = do
       repl
     Input t  -> do
       response <- hoistState (answer t)
-      disappearingPrint (typingTime averageWPS response) "Eliza is typing..."
+      disappearingPrint (typingTime  response) "Eliza is typing..."
       cliOutput response
       repl
 
-averageWPS :: Int
-averageWPS = 80
+-- | Given an average of words per second, calculate the time to type a given text.
+typingTime :: T.Text -> Int
+typingTime text = 10^6 * T.length text `quot` wps
+  where wps = 80
 
-typingTime :: Int -> T.Text -> Int
-typingTime wps text = 10^6 * T.length text `quot` wps
-
-disappearingPrint :: MonadIO m => Int -> T.Text -> m ()
-disappearingPrint time phrase = liftIO $ do
-  T.putStr phrase
-  hFlush stdout
-  threadDelay time
-  clearLine
-  setCursorColumn 0
-
-initialMsg :: MonadIO m => m ()
-initialMsg = liftIO $ do
-  T.putStr "Welcome to "
-  yellow   "ELIZA"
-  T.putStr "!\n"
-  T.putStr "Type your questions and press 'Enter'\n"
-  T.putStr "For more info, enter '"
-  cyan ":help"
-  T.putStr "'\n\n"
-
-helpMsg :: MonadIO m => m ()
-helpMsg = liftIO $ do
-  T.putStrLn "Available commands:\n"
-  cyan "  :help"
-  T.putStrLn "\t    show this message"
-  cyan "  :load"
-  T.putStrLn "\t    load new script"
-  cyan "  :quit"
-  T.putStrLn "\t    exit Eliza"
-  T.putStrLn ""
-
+-- | Get user input form stdin with a prompt
 cliInput :: MonadIO m => m T.Text
 cliInput = liftIO $ do
   green ">>>>>> "
@@ -90,8 +72,20 @@ cliInput = liftIO $ do
   T.putStrLn ""
   pure input
 
+-- | Print to stdout with a prompt (to use on bot answers)
 cliOutput :: MonadIO m => T.Text -> m ()
 cliOutput out = liftIO $ yellow "eliza> " >> T.putStrLn (out <> "\n")
+
+-- * ANSI terminal helpers
+
+-- | Print a text and make it disappear.
+disappearingPrint :: MonadIO m => Int -> T.Text -> m ()
+disappearingPrint time phrase = liftIO $ do
+  T.putStr phrase
+  hFlush stdout
+  threadDelay time
+  clearLine
+  setCursorColumn 0
 
 yellow :: MonadIO m => T.Text -> m ()
 yellow = putStrAnsi [SetColor Foreground Vivid Yellow]
@@ -106,12 +100,42 @@ cyan = putStrAnsi [SetColor Foreground Dull Cyan]
 putStrAnsi :: MonadIO m => [SGR] -> T.Text -> m ()
 putStrAnsi l s = liftIO $ setSGR l >> T.putStr s >> setSGR [Reset]
 
+-- * Messages
+
+-- | The CLI header message
+initialMsg :: MonadIO m => m ()
+initialMsg = liftIO $ do
+  T.putStr "Welcome to "
+  yellow   "ELIZA"
+  T.putStr "!\n"
+  T.putStr "Type your questions and press 'Enter'\n"
+  T.putStr "For more info, enter '"
+  cyan ":help"
+  T.putStr "'\n\n"
+
+-- | What to print on screen when the user asks for help
+helpMsg :: MonadIO m => m ()
+helpMsg = liftIO $ do
+  T.putStrLn "Available commands:\n"
+  cyan "  :help"
+  T.putStrLn "\t    show this message"
+  cyan "  :load"
+  T.putStrLn "\t    load new script"
+  cyan "  :quit"
+  T.putStrLn "\t    exit Eliza"
+  T.putStrLn ""
+
+-- | Message for wrong command
 cmdErrorMsg :: MonadIO m => T.Text -> m ()
 cmdErrorMsg input = liftIO $ do
   T.putStr "Sorry, non-recognized command: "
   cyan (input <> "\n")
 
+-- * Parse commands
 
+-- | Process the input text,
+-- checking if it is a normal input or a command string.
+-- In the later case, also process it to see which command it is.
 processInput :: T.Text -> UserInput
 processInput s = maybe (Input s) id $ MP.parseMaybe commands s
   where
@@ -121,6 +145,7 @@ processInput s = maybe (Input s) id $ MP.parseMaybe commands s
    cmdError = CmdError <$ (MP.space *> MP.char ':' *> MP.many MP.anySingle)
    commands = MP.choice $ fmap MP.try [cmdHelp, cmdQuit, cmdLoad, cmdError]
 
+-- | Helper function to parse a command
+-- that can start with multiple keywords
 parseCmd :: (Foldable f, Functor f) => f T.Text -> Parser T.Text
 parseCmd xs = MP.space *> MP.char ':' *> MP.choice (fmap exactWord xs)
-
