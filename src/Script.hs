@@ -8,7 +8,6 @@ import qualified Data.ByteString.Lazy as LB
 
 import           Data.Maybe
 import           Control.Monad
-import           Control.Arrow ((&&&))
 
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
@@ -23,10 +22,10 @@ import Utils
 -- | All the information about how a ELIZA bot should respond.
 data Script = Script { reflections :: M.Map T.Text T.Text
                      , keywords    :: M.Map T.Text Keyword
+                     , groups      :: M.Map T.Text (V.Vector T.Text)
                      , defaultSays :: V.Vector T.Text
                      , greetings   :: V.Vector T.Text
                      , goodbyes    :: V.Vector T.Text
-                     , groups      :: M.Map T.Text (V.Vector T.Text)
                      }
   deriving Show
 
@@ -50,9 +49,9 @@ getMatchingRules (Rule (DRule x) _) = x
 getRecompRules :: Rule -> V.Vector RRule
 getRecompRules (Rule _ x) = x
 
--- The possible ways to match a text
+-- | The possible ways to match a text
 data MatchingRule = MatchWord T.Text
-                  | MatchAll
+                  | MatchMany
                   | MatchN Int
                   | MatchChoice [T.Text]
                   | MatchGroup T.Text
@@ -68,15 +67,20 @@ data ReassemblyRule = ReturnText T.Text
 data RRule = RRule [ReassemblyRule] | RKeyword T.Text | RNewkey
   deriving Show
 
+-- | Find a 'Keyword' by name.
 findKeyword :: MonadPlus m => T.Text -> Script -> m Keyword
 findKeyword w script = genericLookup (T.toLower w) (keywords script)
 
+-- | Lookup the reflection text (if it exists).
 findReflection :: MonadPlus m => T.Text -> Script -> m T.Text
 findReflection w script = genericLookup (T.toLower w) (reflections script)
 
-findGroup :: MonadPlus m => T.Text -> Script -> m (V.Vector T.Text)
-findGroup w script = genericLookup (T.toLower w) (groups script)
+-- | Lookup all elements of a given group.
+findGroup :: T.Text -> Script -> V.Vector T.Text
+findGroup w script = maybe V.empty id
+ (M.lookup (T.toLower w) (groups script))
 
+-- | Test wheter a keyword has memory rules
 isMemorizable :: Keyword -> Bool
 isMemorizable = not . V.null . kwMemory
 
@@ -99,13 +103,12 @@ parserDRule = fmap DRule parserMatchingRules
 parserMatchingRules :: Parser [MatchingRule]
 parserMatchingRules = space *> some rule
   where
-   matchWord, matchAll, matchN, matchChoice, matchGroup :: Parser MatchingRule
    matchWord   = MatchWord   <$> word
-   matchAll    = MatchAll    <$  symbol "*"
+   matchMany   = MatchMany   <$  symbol "*"
    matchN      = MatchN      <$> (char '#' *> positiveInteger)
    matchChoice = MatchChoice <$> brackets (some word)
    matchGroup  = MatchGroup  <$> (char '@' *> word)
-   rule = choice [matchAll, matchN, matchChoice, matchGroup, matchWord]
+   rule = choice [matchMany, matchN, matchChoice, matchGroup, matchWord]
 
 parserRRule :: Parser RRule
 parserRRule = parserRNewkey <|> parserRKeyword <|> fmap RRule parserReassemblyRules
@@ -152,7 +155,7 @@ instance Aeson.FromJSON Script where
      , keywords    = M.fromList . concatMap matchAliases $ (keywords :: [Keyword])
      }
   where
-   matchAliases k = [(w, k) | w <- kwWords k]
+   matchAliases k = [(T.toLower w, k) | w <- kwWords k]
 
 instance Aeson.FromJSON Keyword where
  parseJSON = Aeson.withObject "Keyword" $ \ v -> do

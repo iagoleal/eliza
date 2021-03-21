@@ -22,9 +22,7 @@ import           Data.Char (isSeparator)
 import Script
 import Utils
 
-{-
-  State
--}
+-- * Bot configuration
 data BotState = BotState { botScript     :: Script
                          , botSeed       :: StdGen
                          , botMemory     :: S.Seq T.Text
@@ -37,13 +35,21 @@ initBotState script = do
   seed <- newStdGen
   pure (BotState script seed S.empty 0.4)
 
--- *The bot per se
+-- ** The bot per se
 
-eliza :: BotState -> (T.Text -> T.Text)
-eliza botState input = evalState (answer input) botState
+{- | Bot main procedure.
+  Receive some input and answer accordingly to the state of the bot.
 
--- |Bot main procedure.
--- Receive some input and answer it following the script.
+  The process follows these steps:
+
+  - Scan input looking for keywords
+  - Keep only the first part of input (between punctuations) where we find any keyword
+  - Apply reflections to each (possible) word according to script
+  - If we find no keyword, answer with a phrase from memory or pick a default answer
+  - Else, try to commit the phrase to memory
+    and try to match the keywords to it.
+  - Answer accordingly or with a default answer.
+-}
 answer :: T.Text -> State BotState T.Text
 answer input = do
   (ws, kwStack) <- scanKeywords input
@@ -55,18 +61,17 @@ answer input = do
       keywordsMatcher xs phrase
 
 
--- **Memory Related
-
+-- ** Memory Related
 maybeRemember :: State BotState (Maybe T.Text)
 maybeRemember = do
-  bot <- get
-  let memo = botMemory bot
   p <- pickRandom
-  if p > botMemoryProb bot
+  prob <- gets botMemoryProb
+  memo <- gets botMemory
+  if p > prob
    then case memo of
      S.Empty -> pure Nothing
-     h :<| t -> put bot{botMemory = t} >> pure (Just h)
-    else pure Nothing
+     h :<| t -> modify (\bot -> bot{botMemory = t}) >> pure (Just h)
+   else pure Nothing
 
 commitToMemory :: Keyword -> T.Text -> State BotState ()
 commitToMemory kw input =
@@ -79,7 +84,8 @@ memorize t = do
   let memo = botMemory bot
   put bot{botMemory = memo :|> t}
 
--- Find Keywords
+-- ** Find Keywords
+
 scanKeywords :: T.Text -> State BotState ([T.Text], [Keyword])
 scanKeywords input = case parse phrasesParser "" input of
     Left _  -> pure ([], [])
@@ -109,11 +115,11 @@ reflect ws = do
 
 disassemble :: [MatchingRule] -> T.Text -> MaybeT (State BotState) [T.Text]
 disassemble rs input = do
-  p <- lift $ parserFromRule rs
-  liftMaybe $ parseMaybe p input
+  p <- lift (parserFromRule rs)
+  liftMaybe (parseMaybe p input)
 
-reassemble :: [ReassemblyRule] -> [T.Text] -> MaybeT (State BotState) T.Text
-reassemble rs ts = pure $ T.concat (fmap (assembler ts) rs)
+reassemble :: [ReassemblyRule] -> [T.Text] -> T.Text
+reassemble rs ts = T.concat (fmap (assembler ts) rs)
  where
   assembler ws = \case
     ReturnText  t -> t
@@ -140,14 +146,14 @@ tryDecompRule rule input =
     case recomp of
       RNewkey      -> mzero
       RKeyword t   -> tryOtherKeyword t
-      RRule rrules -> reassemble rrules result
+      RRule rrules -> pure $ reassemble rrules result
  where
   tryOtherKeyword t = do
      script <- gets botScript
      kw <- findKeyword t script
      matchKeyword kw input
 
--- *Generate decomposition parsers
+-- * Generate decomposition parsers
 
 parserFromRule :: [MatchingRule] -> State BotState (Parser [T.Text])
 parserFromRule = fmap sequence . unfoldrM coalg
@@ -166,13 +172,13 @@ matchingRuleParser = runMaybeT . \case
   MatchWord   w  -> pure (exactWord w)
   MatchChoice ws -> pure $ choice (fmap exactWord ws)
   MatchGroup  g  -> do
-    script <- gets botScript
-    grps   <- liftMaybe $ findGroup g script
+    grps <-  gets (findGroup g . botScript)
     pure $ choice (fmap exactWord grps)
   MatchN      n  -> pure (T.unwords <$> count n word)
-  MatchAll       -> mzero
+  MatchMany      -> mzero
 
--- |Chunk a phrase into phrases made of words
+-- | Chunk a text into phrases (break on delimiters)
+--   and each phrase into words (break on spaces)
 phrasesParser :: Parser [[T.Text]]
 phrasesParser = sepEndBy phrase punctParser
  where phrase = space *> some (lexeme (T.pack <$> some validChar))
@@ -184,20 +190,19 @@ validChar = satisfy (not . (\x -> isSeparator x || elem x puncts))
 punctParser :: Parser Char
 punctParser = satisfy (flip elem (".,!?;:" :: [Char]))
 
--- *Random Picking
+-- * Random Picking
 
 liftRandom :: (Random a) => (StdGen -> (a, StdGen)) -> State BotState a
 liftRandom f = do
-  bot <- get
-  let (x, nseed) = f (botSeed bot)
-  put bot{botSeed = nseed}
+  (x, nseed) <- gets (f . botSeed)
+  modify $ \bot -> bot{botSeed = nseed}
   pure x
 
 pickRandomR :: (Random a) => (a, a) -> State BotState a
 pickRandomR = liftRandom . randomR
 
 pickRandom :: (Random a) =>  State BotState a
-pickRandom = liftRandom  random
+pickRandom = liftRandom random
 
 pickAny :: V.Vector a -> State BotState a
 pickAny v = pickRandomR (0, V.length v - 1) >>= V.indexM v
