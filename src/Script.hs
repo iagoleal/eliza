@@ -49,22 +49,25 @@ getMatchingRules (Rule (DRule x) _) = x
 getRecompRules :: Rule -> V.Vector RRule
 getRecompRules (Rule _ x) = x
 
--- | The possible ways to match a text
-data MatchingRule = MatchWord T.Text
-                  | MatchMany
-                  | MatchN Int
-                  | MatchChoice [T.Text]
-                  | MatchGroup T.Text
+-- | The possible ways to match a text during 'Eliza.disassemble'.
+data MatchingRule = MatchWord T.Text     -- ^ Exactly match a given word
+                  | MatchMany            -- ^ Match zero or more words (consumes until the following rule matches)
+                  | MatchN Int           -- ^ Match exactly n words
+                  | MatchChoice [T.Text] -- ^ Match ony word in a given list
+                  | MatchGroup T.Text    -- ^ Match any word pertaining to a certain group
   deriving Show
 
 newtype DRule = DRule [MatchingRule]
   deriving Show
 
-data ReassemblyRule = ReturnText T.Text
-                    | ReturnIndex Int
+data ReassemblyRule = ReturnText T.Text -- ^ Return a text verbatim (including spaces)
+                    | ReturnIndex Int   -- ^ Lookup the ith element on decomposed list and return it
   deriving Show
 
-data RRule = RRule [ReassemblyRule] | RKeyword T.Text | RNewkey
+-- | Possible recomposition rules
+data RRule = RRule [ReassemblyRule] -- ^ How to reassemble a text after decomposition
+           | RKeyword T.Text        -- ^ Try decomposition rules for another keyword
+           | RNewkey                -- ^ Continue looking into the keyword stack
   deriving Show
 
 -- | Find a 'Keyword' by name.
@@ -83,7 +86,6 @@ findGroup w script = maybe V.empty id
 -- | Test wheter a keyword has memory rules
 isMemorizable :: Keyword -> Bool
 isMemorizable = not . V.null . kwMemory
-
 
 -- * Parsers to convert between Text and Rules
 
