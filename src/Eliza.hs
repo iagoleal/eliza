@@ -1,5 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
+{-|
+Module      : Eliza
+Description : Bindings and types for Eliza bot
+Copyright   : (c) Iago Leal de Freitas, 2021
+License     : GPL-3
+Maintainer  : hello@iagoleal.com
+Stability   : experimental
+Portability : POSIX, Windows
+
+Here is a longer description of this module, containing some
+commentary with @some markup@.
+-}
 module Eliza (
     module Eliza
   , module Script

@@ -1,3 +1,16 @@
+{-|
+Module      : CLI
+Description : Command Line Interface for jliza
+Copyright   : (c) Iago Leal de Freitas, 2021
+License     : GPL-3
+Maintainer  : hello@iagoleal.com
+Stability   : experimental
+Portability : POSIX, Windows
+
+Define the necessary methods to run a bot in a CLI.
+Everything in here should be ANSI compatible and work
+in both POSIX compliant terminals and on the Windows cmd / powershell.
+-}
 module CLI (cliRepl) where
 
 import qualified Data.Text       as T

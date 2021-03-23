@@ -30,18 +30,19 @@ unfoldrM f seed =
 liftMaybe :: (Alternative m) => Maybe a -> m a
 liftMaybe = maybe empty pure
 
--- | Generalize a 'State' into any 'MonadState'.
+-- | Generalize a 'Control.Monad.State.State' into any 'Control.Monad.State.MonadState'.
 hoistState :: MonadState s m => State s a -> m a
 hoistState = state . runState
 
+-- | Like "Data.Map.lookup' but for any 'Control.Monad.MonadPlus'
 genericLookup :: (Alternative m, Ord k) => k -> M.Map k v -> m v
 genericLookup k m = liftMaybe $ M.lookup k m
 
 -- * Safe versions of functions
 
+-- | Safe version of 'Data.Text.head'
 safeTextHead :: T.Text -> Maybe Char
 safeTextHead = fmap fst . T.uncons
-
 
 -- * General Parsers
 
@@ -57,16 +58,20 @@ lexeme = L.lexeme spaceConsumer
 symbol :: T.Text -> Parser T.Text
 symbol = L.symbol' spaceConsumer
 
+-- | Parser to match a word exactly,
+-- ensuring that it is the complete word.
 exactWord :: T.Text -> Parser T.Text
 exactWord w = lexeme (string' w <* notFollowedBy alphaNumChar)
 
+-- | Parser that matches any word.
 word :: Parser T.Text
 word = lexeme $ T.pack <$> some (alphaNumChar <|> char '\'' <|> char '-')
 
 brackets :: Parser a -> Parser a
 brackets = between (symbol "[") (symbol "]")
 
-positiveInteger :: Parser Int
+-- | Porser for positive (strictly greater than zero) integers
+positiveInteger :: Integral a => Parser a
 positiveInteger = do
   d <- lexeme L.decimal
   if d == 0
