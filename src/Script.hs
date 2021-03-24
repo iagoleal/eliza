@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 module Script where
 
 import qualified Data.Map.Strict as M
@@ -6,6 +7,7 @@ import qualified Data.Vector     as V
 import qualified Data.Text       as T
 import qualified Data.ByteString.Lazy as LB
 
+import           Data.List (sort, group)
 import           Data.Maybe
 import           Control.Monad
 
@@ -14,9 +16,10 @@ import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
 import qualified Data.Aeson as Aeson
-import           Data.Aeson ((.:), (.:?), (.!=))
+import           Data.Aeson ((.:), (.:?), (.!=), (.=))
 
 import Utils
+
 
 
 -- | All the information about how a ELIZA bot should respond.
@@ -27,7 +30,7 @@ data Script = Script { reflections :: M.Map T.Text T.Text
                      , greetings   :: V.Vector T.Text
                      , goodbyes    :: V.Vector T.Text
                      }
-  deriving Show
+  deriving (Show, Eq)
 
 -- | Store all the necessary info for a given keyword
 data Keyword = Keyword { kwWords      :: [T.Text]
@@ -35,10 +38,10 @@ data Keyword = Keyword { kwWords      :: [T.Text]
                        , kwRules      :: V.Vector Rule
                        , kwMemory     :: V.Vector Rule
                        }
-  deriving Show
+  deriving (Show, Eq, Ord)
 
 data Rule = Rule DRule (V.Vector RRule)
-  deriving Show
+  deriving (Show, Eq, Ord)
 
 getDecompRule :: Rule -> DRule
 getDecompRule (Rule x _) = x
@@ -55,20 +58,20 @@ data MatchingRule = MatchWord T.Text     -- ^ Exactly match a given word
                   | MatchN Int           -- ^ Match exactly n words
                   | MatchChoice [T.Text] -- ^ Match ony word in a given list
                   | MatchGroup T.Text    -- ^ Match any word pertaining to a certain group
-  deriving Show
+  deriving (Show, Eq, Ord)
 
 newtype DRule = DRule [MatchingRule]
-  deriving Show
+  deriving (Show, Eq, Ord)
 
 data ReassemblyRule = ReturnText T.Text -- ^ Return a text verbatim (including spaces)
                     | ReturnIndex Int   -- ^ Lookup the ith element on decomposed list and return it
-  deriving Show
+  deriving (Show, Eq, Ord)
 
 -- | Possible recomposition rules
 data RRule = RRule [ReassemblyRule] -- ^ How to reassemble a text after decomposition
            | RKeyword T.Text        -- ^ Try decomposition rules for another keyword
            | RNewkey                -- ^ Continue looking into the keyword stack
-  deriving Show
+  deriving (Show, Eq, Ord)
 
 -- | Find a 'Keyword' by name.
 findKeyword :: MonadPlus m => T.Text -> Script -> m Keyword
@@ -87,7 +90,9 @@ findGroup w script = maybe V.empty id
 isMemorizable :: Keyword -> Bool
 isMemorizable = not . V.null . kwMemory
 
--- * Parsers to convert between Text and Rules
+----------------------------
+-- * Convert Text to Rules -
+----------------------------
 
 readDRule :: T.Text -> DRule
 readDRule input = case parse parserDRule "" input of
@@ -129,7 +134,31 @@ parserReassemblyRules = space *> some (returnIndex <|> returnText)
    returnText  = ReturnText . T.pack <$> some validChar
    validChar   = satisfy (/='$')
 
--- * Read from JSON
+----------------------------
+-- * Convert Rules to Text -
+----------------------------
+
+textifyMatchingRule :: MatchingRule -> T.Text
+textifyMatchingRule = \case
+  MatchWord w    -> w
+  MatchMany      -> "*"
+  MatchN n       -> "#" <> T.pack (show n)
+  MatchChoice ws -> "[" <> T.unwords ws <> "]"
+  MatchGroup  g  -> "@" <> g
+
+textifyReassemblyRule :: ReassemblyRule -> T.Text
+textifyReassemblyRule = \case
+  ReturnText  t -> t
+  ReturnIndex n -> "$" <> T.pack (show n)
+
+textifyDRule :: DRule -> T.Text
+textifyDRule (DRule ms) = T.unwords (fmap textifyMatchingRule ms)
+
+textifyRRule :: RRule -> T.Text
+textifyRRule = \case
+  RNewkey     -> ":newkey"
+  RKeyword kw -> "=" <> kw
+  RRule    rs -> T.concat (fmap textifyReassemblyRule rs)
 
 -- | Read a JSON file containing an ELIZA script.
 loadScript :: FilePath -> IO Script
@@ -176,6 +205,44 @@ instance Aeson.FromJSON Rule where
    decomp  <- readDRule <$> o .: "decomposition"
    recomps <- fmap readRRule <$> o .: "reassembly"
    pure $ Rule decomp recomps
+
+instance Aeson.ToJSON Script where
+ toJSON Script { reflections = reflections
+                , keywords    = keywords
+                , groups      = groups
+                , defaultSays = defaultSays
+                , greetings   = greetings
+                , goodbyes    = goodbyes
+                } =
+   Aeson.object [ "reflections" .= reflections
+                , "keywords"    .= toListOfKeywords keywords
+                , "groups"      .= groups
+                , "default"     .= defaultSays
+                , "greetings"   .= greetings
+                , "goodbyes"    .= goodbyes
+                ]
+  where toListOfKeywords kws = uniq . fmap snd . M.toList $ kws
+        uniq = fmap head . group . sort
+
+
+instance Aeson.ToJSON Keyword where
+ toJSON Keyword { kwWords      = kwWords
+                , kwPrecedence = kwPrecedence
+                , kwRules      = kwRules
+                , kwMemory     = kwMemory
+                } =
+   Aeson.object [ "keyword"    .= kwWords
+                , "precedence" .= kwPrecedence
+                , "rules"      .= kwRules
+                , "memory"     .= kwMemory
+                ]
+
+
+instance Aeson.ToJSON Rule where
+ toJSON (Rule decomp recomps) =
+   Aeson.object [ "decomposition" .= textifyDRule decomp
+                , "reassembly"    .= fmap textifyRRule recomps
+                ]
 
 
 {- * Default Script -}
