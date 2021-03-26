@@ -13,7 +13,7 @@ differently from the more modern chatbots based on machine learning.
 Nevertheless, it was still an interesting project for putting Haskell's parsing capabilities into practice
 and the result can be pretty fun.
 If you are stressed while debuging some code on the middle of the night,
-try starting an `eliza` REPL and have some chat. 
+try starting an `eliza` REPL and have some chat.
 
 Since people say an asciinema is worth more than a thousand words...
 [![asciicast](https://asciinema.org/a/400665.svg)](https://asciinema.org/a/400665)
@@ -142,6 +142,18 @@ so you must guarantee that the decomposition has enough elements.
 | `:newkey`                         | try rules for next keyword on the stack             |
 | `=<word>`                         | try rules for keyword `<word>`                      |
 | `<word> ... $<number> ... <word>` | interpolate `<number>`th word on the list on string |
+
+## Differences to the original implementation
+
+I began by following Weizenbaum's paper by heart
+but later diverged on some implementation details.
+This is a list of what's different:
+
+- Scripts are JSON files instead of MAD-SLIP files.
+- There are many greetings and goodbyes options.
+- Reassembly rules are chosen randomly after a given decomposition rule match,
+whereas in the original, the bot keeps a state and cycles through them.
+- Any keyword can be used as a memory transformation, not just one.
 
 ## References
 <a id="1">[1]</a>
