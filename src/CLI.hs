@@ -16,9 +16,13 @@ module CLI
   , Config(..)
   ) where
 
-import           Control.Monad.State
 import           Control.Concurrent (threadDelay)
+import           Control.Exception
+import           Control.Monad.State
+
 import           System.IO
+import           System.IO.Error
+
 import           System.Console.ANSI
 
 import qualified Data.Text       as T
@@ -86,8 +90,17 @@ evalAndPrint Config {cfgTypingSpeed = wps} = \case
   CmdError e -> cmdErrorMsg e
   CmdHelp    -> helpMsg
   CmdLoad file -> do
-    script <- liftIO (loadScript file)
-    modify (\bot -> bot{botScript = script})
+    currentScript <- gets botScript
+    newScript <- liftIO $ catchJust (\e -> if isDoesNotExistError e || isUserError e
+                                 then Just (ioeGetErrorString e)
+                                 else Nothing)
+                      (loadScript file <* putStrLn "Script loaded succesfully!\n")
+                      (\s -> do
+                        hPutStrAnsi red stderr "Loading error: "
+                        hPutStrLn stderr s
+                        T.hPutStrLn stderr "Keeping current script...\n"
+                        pure currentScript)
+    modify (\bot -> bot{botScript = newScript})
   Input t  -> do
     response <- hoistState (answer t)
     disappearingPrint (typingTime wps response) "Eliza is typing..."
@@ -105,7 +118,7 @@ typingTime wps text = 10^6 * T.length text `quot` wps
 -- | Get user input form stdin with a prompt
 cliInput :: MonadIO m => m T.Text
 cliInput = liftIO $ do
-  green ">>>>>> "
+  putStrAnsi green ">>>>>> "
   hFlush stdout
   input <- T.getLine
   T.putStrLn ""
@@ -113,7 +126,7 @@ cliInput = liftIO $ do
 
 -- | Print to stdout with a prompt (to use on bot answers)
 cliOutput :: MonadIO m => T.Text -> m ()
-cliOutput out = liftIO $ yellow "eliza> " >> T.putStrLn (out <> "\n")
+cliOutput out = liftIO $ putStrAnsi yellow "eliza> " >> T.putStrLn (out <> "\n")
 
 -- * Messages
 
@@ -121,22 +134,22 @@ cliOutput out = liftIO $ yellow "eliza> " >> T.putStrLn (out <> "\n")
 initialMsg :: MonadIO m => m ()
 initialMsg = liftIO $ do
   T.putStr "Welcome to "
-  yellow   "ELIZA"
+  putStrAnsi yellow   "ELIZA"
   T.putStr "!\n"
   T.putStr "Type your questions and press 'Enter'\n"
   T.putStr "For more info, enter '"
-  cyan ":help"
+  putStrAnsi  cyan ":help"
   T.putStr "'\n\n"
 
 -- | What to print on screen when the user asks for help
 helpMsg :: MonadIO m => m ()
 helpMsg = liftIO $ do
   T.putStrLn "Available commands:\n"
-  cyan "  :help"
+  putStrAnsi cyan "  :help"
   T.putStrLn "\t    show this message"
-  cyan "  :load"
+  putStrAnsi cyan "  :load"
   T.putStrLn "\t    load new script"
-  cyan "  :quit"
+  putStrAnsi cyan "  :quit"
   T.putStrLn "\t    exit Eliza"
   T.putStrLn ""
 
@@ -144,10 +157,12 @@ helpMsg = liftIO $ do
 cmdErrorMsg :: MonadIO m => T.Text -> m ()
 cmdErrorMsg input = liftIO $ do
   T.putStr "Sorry, non-recognized command: '"
-  cyan (":" <> input)
-  T.putStr "'\n"
+  putStrAnsi  cyan (":" <> input)
+  T.putStr "'\n\n"
 
+--------------------
 -- * Parse commands
+--------------------
 
 -- | Process the input text,
 -- checking if it is a normal input or a command string.
@@ -178,15 +193,21 @@ disappearingPrint time phrase = liftIO $ do
   clearLine
   setCursorColumn 0
 
-yellow :: MonadIO m => T.Text -> m ()
-yellow = putStrAnsi [SetColor Foreground Vivid Yellow]
 
-green :: MonadIO m => T.Text -> m ()
-green = putStrAnsi [ SetColor Foreground Vivid Green
-                   , SetConsoleIntensity BoldIntensity ]
+yellow :: [SGR]
+yellow = [SetColor Foreground Vivid Yellow]
 
-cyan :: MonadIO m => T.Text -> m ()
-cyan = putStrAnsi [SetColor Foreground Dull Cyan]
+green :: [SGR]
+green = [SetColor Foreground Vivid Green, SetConsoleIntensity BoldIntensity]
+
+cyan :: [SGR]
+cyan = [SetColor Foreground Dull Cyan]
+
+red :: [SGR]
+red = [SetColor Foreground Vivid Red]
 
 putStrAnsi :: MonadIO m => [SGR] -> T.Text -> m ()
-putStrAnsi l s = liftIO $ setSGR l >> T.putStr s >> setSGR [Reset]
+putStrAnsi l = hPutStrAnsi l stdout
+
+hPutStrAnsi :: MonadIO m => [SGR] -> Handle -> T.Text -> m ()
+hPutStrAnsi l h s = liftIO $ setSGR l >> T.hPutStr h s >> setSGR [Reset]

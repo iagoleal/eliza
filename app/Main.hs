@@ -44,7 +44,9 @@ parseArguments args = do
 -- | Like 'Eliza.loadScript' but exits the program if the file doesn't exist.
 scriptFromFile :: FilePath -> IO Script
 scriptFromFile fname = do
-  catchJust (\e -> if isDoesNotExistErrorType (ioeGetErrorType e) then Just () else Nothing)
+  catchJust (\e -> if isDoesNotExistError e
+                    then Just ()
+                    else Nothing)
             (loadScript fname)
             (\_ -> do
               prog <- getProgName
