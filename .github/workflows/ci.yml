@@ -66,7 +66,6 @@ jobs:
     strategy:
       matrix:
         stack: ["latest"]
-        ghc: ["8.10.4"]
     steps:
     - uses: actions/checkout@v2
     - uses: haskell/actions/setup@v1
@@ -79,13 +78,13 @@ jobs:
       name: Cache ~/.stack
       with:
         path: ~/.stack
-        key: ${{ runner.os }}-${{ matrix.ghc }}-stack
+        key: ${{ runner.os }}-stack
     - name: Install dependencies
       run: |
-        stack build --system-ghc --test --bench --no-run-tests --no-run-benchmarks --only-dependencies
+        stack build --test --bench --no-run-tests --no-run-benchmarks --only-dependencies
     - name: Build
       run: |
-        stack build --system-ghc --test --bench --no-run-tests --no-run-benchmarks
+        stack build --test --bench --no-run-tests --no-run-benchmarks
     - name: Test
       run: |
-        stack test --system-ghc
+        stack test
