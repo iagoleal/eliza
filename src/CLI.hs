@@ -1,6 +1,6 @@
 {-|
 Module      : CLI
-Description : Command Line Interface for jliza
+Description : Command Line Interface for eliza
 Copyright   : (c) Iago Leal de Freitas, 2021
 License     : GPL-3
 Maintainer  : hello@iagoleal.com
@@ -11,21 +11,31 @@ Define the necessary methods to run a bot in a CLI.
 Everything in here should be ANSI compatible and work
 in both POSIX compliant terminals and on the Windows cmd / powershell.
 -}
-module CLI (cliRepl) where
+module CLI
+  ( cliRepl
+  , Config(..)
+  ) where
 
-import qualified Data.Text       as T
-import qualified Data.Text.IO    as T
+import           Control.Monad.State
+import           Control.Concurrent (threadDelay)
 import           System.IO
 import           System.Console.ANSI
 
-import Control.Monad.State
-import Control.Concurrent (threadDelay)
+import qualified Data.Text       as T
+import qualified Data.Text.IO    as T
 
 import qualified Text.Megaparsec as MP
 import qualified Text.Megaparsec.Char as MP
 
 import Eliza
 import Utils
+
+-- | The configuration necessary to run a Eliza program
+data Config = Config
+  { cfgTypingSpeed :: Int     -- ^ On average, how many words the bot types per second.
+  , cfgScript      :: Script  -- ^ Where the script file is located.
+  }
+
 
 -- | Which kind of input did the user enter
 data UserInput = CmdQuit          -- ^ User asked to close program
@@ -44,37 +54,38 @@ data UserInput = CmdQuit          -- ^ User asked to close program
   This function is supposed to run indefinitely
   or until the user explicitly quits the program.
 -}
-cliRepl :: Script -> IO ()
-cliRepl script = do
+cliRepl :: Config -> IO ()
+cliRepl cfg = do
   initialMsg
-  bot <- initBotState script
+  bot <- initBotState (cfgScript cfg)
   flip evalStateT bot $ do
     greet <- hoistState pickGreeting
     liftIO (cliOutput greet)
-    repl
+    makeRepl cfg
 
--- | The main loop for 'cliRepl'.
-repl :: StateT BotState IO ()
-repl = do
-  input <- liftIO cliInput
-  case processInput input of
-    CmdQuit  -> hoistState pickGoodbye >>= cliOutput
-    CmdError -> cmdErrorMsg input >> repl
-    CmdHelp  -> helpMsg           >> repl
-    CmdLoad file -> do
-      script <- lift $ loadScript file
-      modify (\bot -> bot{botScript = script})
-      repl
-    Input t  -> do
-      response <- hoistState (answer t)
-      disappearingPrint (typingTime  response) "Eliza is typing..."
-      cliOutput response
-      repl
+-- | Given a configuration, generate a REPL.
+makeRepl :: Config -> StateT BotState IO ()
+makeRepl Config {cfgTypingSpeed = wps} = repl
+ where
+  repl = do
+    input <- liftIO cliInput
+    case processInput input of
+      CmdQuit  -> hoistState pickGoodbye >>= cliOutput
+      CmdError -> cmdErrorMsg input >> repl
+      CmdHelp  -> helpMsg           >> repl
+      CmdLoad file -> do
+        script <- lift $ loadScript file
+        modify (\bot -> bot{botScript = script})
+        repl
+      Input t  -> do
+        response <- hoistState (answer t)
+        disappearingPrint (typingTime wps response) "Eliza is typing..."
+        cliOutput response
+        repl
 
 -- | Given an average of words per second, calculate the time to type a given text.
-typingTime :: T.Text -> Int
-typingTime text = 10^6 * T.length text `quot` wps
-  where wps = 80
+typingTime :: Int -> T.Text -> Int
+typingTime wps text = 10^6 * T.length text `quot` wps
 
 -- | Get user input form stdin with a prompt
 cliInput :: MonadIO m => m T.Text

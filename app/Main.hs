@@ -27,7 +27,7 @@ main = do
   (cfg, errors)  <- parseArguments args
   when (not (null errors))
     (print errors)
-  cliRepl (cfgScript cfg)
+  cliRepl cfg
 
 -- | Get a list of command line arguments and return a configuration and possible errors.
 parseArguments :: [String] -> IO (Config, [String])
