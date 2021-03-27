@@ -30,19 +30,19 @@ import qualified Text.Megaparsec.Char as MP
 import Eliza
 import Utils
 
--- | The configuration necessary to run a Eliza program
+-- | The configuration necessary to run a Eliza program.
 data Config = Config
   { cfgTypingSpeed :: Int     -- ^ On average, how many words the bot types per second.
   , cfgScript      :: Script  -- ^ Where the script file is located.
   }
 
 
--- | Which kind of input did the user enter
-data UserInput = CmdQuit          -- ^ User asked to close program
-               | CmdError         -- ^ Input started with @:@ but is not a recognized command
-               | CmdHelp          -- ^ User asked to see help message
-               | CmdLoad FilePath -- ^ User asked to load script from a file
-               | Input   T.Text   -- ^ Normal user input
+-- | Which kind of input did the user enter.
+data UserInput = CmdQuit            -- ^ User asked to close program
+               | CmdHelp            -- ^ User asked to see help message
+               | CmdError T.Text    -- ^ Input started with @:@ but is not a recognized command
+               | CmdLoad  FilePath  -- ^ User asked to load script from a file
+               | Input    T.Text    -- ^ Normal user input
   deriving Show
 
 -- * The Command Line Interface
@@ -65,23 +65,38 @@ cliRepl cfg = do
 
 -- | Given a configuration, generate a REPL.
 makeRepl :: Config -> StateT BotState IO ()
-makeRepl Config {cfgTypingSpeed = wps} = repl
+makeRepl cfg = repl
  where
   repl = do
-    input <- liftIO cliInput
-    case processInput input of
-      CmdQuit  -> hoistState pickGoodbye >>= cliOutput
-      CmdError -> cmdErrorMsg input >> repl
-      CmdHelp  -> helpMsg           >> repl
-      CmdLoad file -> do
-        script <- lift $ loadScript file
-        modify (\bot -> bot{botScript = script})
-        repl
-      Input t  -> do
-        response <- hoistState (answer t)
-        disappearingPrint (typingTime wps response) "Eliza is typing..."
-        cliOutput response
-        repl
+    input <- readUserInput
+    evalAndPrint cfg input
+    unless (isExitCommand input)
+      repl
+
+-- | Read user input from stdin.
+readUserInput :: MonadIO m => m UserInput
+readUserInput = cliInput >>= pure . processInput
+
+-- | Evaluate the user input and print the proper output.
+-- If it is a command, execute it.
+-- Else, the bot is queried for an answer and the result printed to stdout.
+evalAndPrint :: Config -> UserInput -> StateT BotState IO ()
+evalAndPrint Config {cfgTypingSpeed = wps} = \case
+  CmdQuit    -> hoistState pickGoodbye >>= cliOutput
+  CmdError e -> cmdErrorMsg e
+  CmdHelp    -> helpMsg
+  CmdLoad file -> do
+    script <- liftIO (loadScript file)
+    modify (\bot -> bot{botScript = script})
+  Input t  -> do
+    response <- hoistState (answer t)
+    disappearingPrint (typingTime wps response) "Eliza is typing..."
+    cliOutput response
+
+-- | Test whether the user wants to leave the program.
+isExitCommand :: UserInput -> Bool
+isExitCommand CmdQuit = True
+isExitCommand _       = False
 
 -- | Given an average of words per second, calculate the time to type a given text.
 typingTime :: Int -> T.Text -> Int
@@ -99,30 +114,6 @@ cliInput = liftIO $ do
 -- | Print to stdout with a prompt (to use on bot answers)
 cliOutput :: MonadIO m => T.Text -> m ()
 cliOutput out = liftIO $ yellow "eliza> " >> T.putStrLn (out <> "\n")
-
--- * ANSI terminal helpers
-
--- | Print a text and make it disappear.
-disappearingPrint :: MonadIO m => Int -> T.Text -> m ()
-disappearingPrint time phrase = liftIO $ do
-  T.putStr phrase
-  hFlush stdout
-  threadDelay time
-  clearLine
-  setCursorColumn 0
-
-yellow :: MonadIO m => T.Text -> m ()
-yellow = putStrAnsi [SetColor Foreground Vivid Yellow]
-
-green :: MonadIO m => T.Text -> m ()
-green = putStrAnsi [ SetColor Foreground Vivid Green
-                   , SetConsoleIntensity BoldIntensity ]
-
-cyan :: MonadIO m => T.Text -> m ()
-cyan = putStrAnsi [SetColor Foreground Dull Cyan]
-
-putStrAnsi :: MonadIO m => [SGR] -> T.Text -> m ()
-putStrAnsi l s = liftIO $ setSGR l >> T.putStr s >> setSGR [Reset]
 
 -- * Messages
 
@@ -152,8 +143,9 @@ helpMsg = liftIO $ do
 -- | Message for wrong command
 cmdErrorMsg :: MonadIO m => T.Text -> m ()
 cmdErrorMsg input = liftIO $ do
-  T.putStr "Sorry, non-recognized command: "
-  cyan (input <> "\n")
+  T.putStr "Sorry, non-recognized command: '"
+  cyan (":" <> input)
+  T.putStr "'\n"
 
 -- * Parse commands
 
@@ -163,13 +155,38 @@ cmdErrorMsg input = liftIO $ do
 processInput :: T.Text -> UserInput
 processInput s = maybe (Input s) id $ MP.parseMaybe commands s
   where
-   cmdQuit  = CmdQuit  <$  (parseCmd ["quit", "q", "bye"] <* MP.many MP.anySingle)
-   cmdHelp  = CmdHelp  <$  (parseCmd ["help", "h"] <* MP.many MP.anySingle)
-   cmdLoad  = CmdLoad  <$> (parseCmd ["load", "l"] *> MP.some MP.anySingle)
-   cmdError = CmdError <$ (MP.space *> MP.char ':' *> MP.many MP.anySingle)
-   commands = MP.choice $ fmap MP.try [cmdHelp, cmdQuit, cmdLoad, cmdError]
+   commands = MP.choice . fmap MP.try $
+     [ CmdQuit  <$  (parseCmd ["quit", "q", "bye"] <* MP.many MP.anySingle)
+     , CmdHelp  <$  (parseCmd ["help", "h", "?"] <* MP.many MP.anySingle)
+     , CmdLoad  <$> (parseCmd ["load", "l"] *> MP.some MP.anySingle)
+     , CmdError . T.pack <$> (MP.space *> MP.char ':' *> MP.many MP.anySingle)
+     ]
 
 -- | Helper function to parse a command
 -- that can start with multiple keywords
 parseCmd :: (Foldable f, Functor f) => f T.Text -> Parser T.Text
 parseCmd xs = MP.space *> MP.char ':' *> MP.choice (fmap exactWord xs)
+
+-- * ANSI terminal helpers
+
+-- | Print a text and make it disappear.
+disappearingPrint :: MonadIO m => Int -> T.Text -> m ()
+disappearingPrint time phrase = liftIO $ do
+  T.putStr phrase
+  hFlush stdout
+  threadDelay time
+  clearLine
+  setCursorColumn 0
+
+yellow :: MonadIO m => T.Text -> m ()
+yellow = putStrAnsi [SetColor Foreground Vivid Yellow]
+
+green :: MonadIO m => T.Text -> m ()
+green = putStrAnsi [ SetColor Foreground Vivid Green
+                   , SetConsoleIntensity BoldIntensity ]
+
+cyan :: MonadIO m => T.Text -> m ()
+cyan = putStrAnsi [SetColor Foreground Dull Cyan]
+
+putStrAnsi :: MonadIO m => [SGR] -> T.Text -> m ()
+putStrAnsi l s = liftIO $ setSGR l >> T.putStr s >> setSGR [Reset]

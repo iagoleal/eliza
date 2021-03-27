@@ -25,7 +25,7 @@ main :: IO ()
 main = do
   args <- getArgs
   (cfg, errors)  <- parseArguments args
-  when (not (null errors))
+  unless (null errors)
     (print errors)
   cliRepl cfg
 
@@ -41,6 +41,7 @@ parseArguments args = do
       pure $ opts {cfgScript = script}
   pure (cfg, errors)
 
+-- | Like 'Eliza.loadScript' but exits the program if the file doesn't exist.
 scriptFromFile :: FilePath -> IO Script
 scriptFromFile fname = do
   catchJust (\e -> if isDoesNotExistErrorType (ioeGetErrorType e) then Just () else Nothing)
@@ -49,6 +50,7 @@ scriptFromFile fname = do
               prog <- getProgName
               hPutStrLn stderr (prog <> ": No such file or directory -- " <> show fname)
               exitWith (ExitFailure 1))
+
 -- | Command line options to parse with 'System.Console.GetOpt'.
 options :: [OptDescr (Config -> IO Config)]
 options =

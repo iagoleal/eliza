@@ -160,6 +160,10 @@ textifyRRule = \case
   RKeyword kw -> "=" <> kw
   RRule    rs -> T.concat (fmap textifyReassemblyRule rs)
 
+----------------------------
+-- * Deal with JSON
+----------------------------
+
 -- | Read a JSON file containing an ELIZA script.
 loadScript :: FilePath -> IO Script
 loadScript filename = do
