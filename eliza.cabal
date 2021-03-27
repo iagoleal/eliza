@@ -18,10 +18,10 @@ executable eliza
   hs-source-dirs:
     app
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  build-depends:
-     eliza
-   , base >= 4.7 && < 5
+  build-depends: eliza
+               , base >= 4.7 && < 5
   default-extensions: OverloadedStrings
+                    , LambdaCase
   default-language: Haskell2010
 
 library
@@ -46,4 +46,5 @@ library
    , aeson
    , ansi-terminal
   default-extensions: OverloadedStrings
+                    , LambdaCase
   default-language: Haskell2010

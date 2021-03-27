@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Script where
 
 import qualified Data.Map.Strict as M
@@ -91,7 +92,7 @@ isMemorizable :: Keyword -> Bool
 isMemorizable = not . V.null . kwMemory
 
 ----------------------------
--- * Convert Text to Rules -
+-- * Convert Text to Rules
 ----------------------------
 
 readDRule :: T.Text -> DRule
@@ -110,12 +111,12 @@ parserDRule = fmap DRule parserMatchingRules
 parserMatchingRules :: Parser [MatchingRule]
 parserMatchingRules = space *> some rule
   where
-   matchWord   = MatchWord   <$> word
-   matchMany   = MatchMany   <$  symbol "*"
-   matchN      = MatchN      <$> (char '#' *> positiveInteger)
-   matchChoice = MatchChoice <$> brackets (some word)
-   matchGroup  = MatchGroup  <$> (char '@' *> word)
-   rule = choice [matchMany, matchN, matchChoice, matchGroup, matchWord]
+   rule = choice [ MatchWord   <$> word
+                 , MatchMany   <$  symbol "*"
+                 , MatchN      <$> (char '#' *> positiveInteger)
+                 , MatchChoice <$> brackets (some word)
+                 , MatchGroup  <$> (char '@' *> word)
+                 ]
 
 parserRRule :: Parser RRule
 parserRRule = parserRNewkey <|> parserRKeyword <|> fmap RRule parserReassemblyRules
@@ -129,13 +130,12 @@ parserRNewkey = RNewkey <$ (char ':' *> exactWord "newkey" <* eof)
 parserReassemblyRules :: Parser [ReassemblyRule]
 parserReassemblyRules = space *> some (returnIndex <|> returnText)
   where
-   returnIndex, returnText :: Parser ReassemblyRule
    returnIndex = ReturnIndex <$> (char '$' *> L.decimal)
    returnText  = ReturnText . T.pack <$> some validChar
    validChar   = satisfy (/='$')
 
 ----------------------------
--- * Convert Rules to Text -
+-- * Convert Rules to Text
 ----------------------------
 
 textifyMatchingRule :: MatchingRule -> T.Text
@@ -190,11 +190,11 @@ instance Aeson.FromJSON Script where
 
 instance Aeson.FromJSON Keyword where
  parseJSON = Aeson.withObject "Keyword" $ \ v -> do
-   word  <- fmap T.toLower <$> v .: "keyword"
+   kword  <- fmap T.toLower <$> v .: "keyword"
    prec  <- v .:? "precedence" .!= 0
    rules <- v .:  "rules"
    memo  <- v .:? "memory"     .!= V.empty
-   pure $ Keyword { kwWords      = word
+   pure $ Keyword { kwWords      = kword
                   , kwPrecedence = prec
                   , kwRules      = rules
                   , kwMemory     = memo
@@ -207,13 +207,7 @@ instance Aeson.FromJSON Rule where
    pure $ Rule decomp recomps
 
 instance Aeson.ToJSON Script where
- toJSON Script { reflections = reflections
-                , keywords    = keywords
-                , groups      = groups
-                , defaultSays = defaultSays
-                , greetings   = greetings
-                , goodbyes    = goodbyes
-                } =
+ toJSON Script {reflections, keywords, groups, defaultSays, greetings, goodbyes} =
    Aeson.object [ "reflections" .= reflections
                 , "keywords"    .= toListOfKeywords keywords
                 , "groups"      .= groups
@@ -226,11 +220,7 @@ instance Aeson.ToJSON Script where
 
 
 instance Aeson.ToJSON Keyword where
- toJSON Keyword { kwWords      = kwWords
-                , kwPrecedence = kwPrecedence
-                , kwRules      = kwRules
-                , kwMemory     = kwMemory
-                } =
+ toJSON Keyword {kwWords, kwPrecedence, kwRules, kwMemory} =
    Aeson.object [ "keyword"    .= kwWords
                 , "precedence" .= kwPrecedence
                 , "rules"      .= kwRules
