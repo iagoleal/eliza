@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-|
 Module      : CLI
 Description : Command Line Interface for eliza
@@ -89,18 +90,10 @@ evalAndPrint Config {cfgTypingSpeed = wps} = \case
   CmdQuit    -> hoistState pickGoodbye >>= cliOutput
   CmdError e -> cmdErrorMsg e
   CmdHelp    -> helpMsg
-  CmdLoad file -> do
+  CmdLoad filename -> do
     currentScript <- gets botScript
-    newScript <- liftIO $ catchJust (\e -> if isDoesNotExistError e || isUserError e
-                                 then Just (ioeGetErrorString e)
-                                 else Nothing)
-                      (loadScript file <* putStrLn "Script loaded succesfully!\n")
-                      (\s -> do
-                        hPutStrAnsi red stderr "Loading error: "
-                        hPutStrLn stderr s
-                        T.hPutStrLn stderr "Keeping current script...\n"
-                        pure currentScript)
-    modify (\bot -> bot{botScript = newScript})
+    script <- loadScriptWithDefault currentScript filename
+    modify (\bot -> bot{botScript = script})
   Input t  -> do
     response <- hoistState (answer t)
     disappearingPrint (typingTime wps response) "Eliza is typing..."
@@ -110,6 +103,26 @@ evalAndPrint Config {cfgTypingSpeed = wps} = \case
 isExitCommand :: UserInput -> Bool
 isExitCommand CmdQuit = True
 isExitCommand _       = False
+
+-- | Execute 'Eliza.loadScript' but, in case of an exception,
+-- print an error message do @stderr@ and return a default script.
+loadScriptWithDefault :: MonadIO m => Script -> FilePath -> m Script
+loadScriptWithDefault currentScript filename = liftIO $ catches
+  (loadScript filename <* putStrLn "Script loaded successfully!\n")
+  [ Handler $ \ (e :: IOException) -> if isDoesNotExistError e
+     then do
+       hPutStrAnsi red stderr "Loading error: "
+       hPutStrLn stderr "File does not exist"
+       hPutStrLn stderr "Keeping current script...\n"
+       pure currentScript
+     else throw e
+  , Handler $ \ (ScriptReadException _ msg :: ScriptReadException) -> do
+     hPutStrAnsi red stderr "Loading error: "
+     hPutStrLn stderr "Couldn't parse script file"
+     hPutStrLn stderr msg
+     hPutStrLn stderr "Keeping current script...\n"
+     pure currentScript
+  ]
 
 -- | Given an average of words per second, calculate the time to type a given text.
 typingTime :: Int -> T.Text -> Int

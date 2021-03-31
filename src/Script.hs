@@ -8,9 +8,10 @@ import qualified Data.Vector     as V
 import qualified Data.Text       as T
 import qualified Data.ByteString.Lazy as LB
 
+import           Control.Exception
+import           Control.Monad
 import           Data.List (sort, group)
 import           Data.Maybe
-import           Control.Monad
 
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
@@ -164,13 +165,22 @@ textifyRRule = \case
 -- * Deal with JSON
 ----------------------------
 
+-- | Exception to throw when loading a Script.
+-- This signals that the supplied file exists but the json is incorrect.
+data ScriptReadException = ScriptReadException FilePath String
+    deriving Show
+
+instance Exception ScriptReadException where
+  displayException (ScriptReadException filename errmsg) =
+       "Failed to load file " <> filename
+    <> "\nError message: "    <> errmsg
+
 -- | Read a JSON file containing an ELIZA script.
 loadScript :: FilePath -> IO Script
 loadScript filename = do
   json <- Aeson.eitherDecodeFileStrict' filename
   case json of
-    Left  errmsg -> fail $ "Failed to load file " <> filename
-                          <> "\nError message: " <> errmsg
+    Left  errmsg -> throwIO . ScriptReadException filename $ errmsg
     Right script -> pure script
 
 instance Aeson.FromJSON Script where
@@ -190,6 +200,7 @@ instance Aeson.FromJSON Script where
      , keywords    = M.fromList . concatMap matchAliases $ (keywords :: [Keyword])
      }
   where
+   -- | Create a List of pairs: (alias of a keyword, keyword)
    matchAliases k = [(T.toLower w, k) | w <- kwWords k]
 
 instance Aeson.FromJSON Keyword where
@@ -222,7 +233,6 @@ instance Aeson.ToJSON Script where
   where toListOfKeywords kws = uniq . fmap snd . M.toList $ kws
         uniq = fmap head . group . sort
 
-
 instance Aeson.ToJSON Keyword where
  toJSON Keyword {kwWords, kwPrecedence, kwRules, kwMemory} =
    Aeson.object [ "keyword"    .= kwWords
@@ -230,7 +240,6 @@ instance Aeson.ToJSON Keyword where
                 , "rules"      .= kwRules
                 , "memory"     .= kwMemory
                 ]
-
 
 instance Aeson.ToJSON Rule where
  toJSON (Rule decomp recomps) =

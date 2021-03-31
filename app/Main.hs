@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module Main (main) where
 
 import Control.Monad
@@ -37,21 +38,27 @@ parseArguments args = do
   cfg <- case nonOptions of
     []        -> pure opts
     (fname:_) -> do
-      script <- scriptFromFile fname
+      script <- loadScriptOrExit fname
       pure $ opts {cfgScript = script}
   pure (cfg, errors)
 
--- | Like 'Eliza.loadScript' but exits the program if the file doesn't exist.
-scriptFromFile :: FilePath -> IO Script
-scriptFromFile fname = do
-  catchJust (\e -> if isDoesNotExistError e
-                    then Just ()
-                    else Nothing)
-            (loadScript fname)
-            (\_ -> do
-              prog <- getProgName
-              hPutStrLn stderr (prog <> ": No such file or directory -- " <> show fname)
-              exitWith (ExitFailure 1))
+-- | Like 'Eliza.loadScript' but exit the program
+-- if the file does not exist or is not a proper JSON script.
+loadScriptOrExit :: FilePath -> IO Script
+loadScriptOrExit fname = catches (loadScript fname)
+  [ Handler $ \ (e :: IOException) ->
+      if isDoesNotExistError e
+       then do
+         prog <- getProgName
+         hPutStrLn stderr (prog <> ": no such file or directory -- " <> show fname)
+         exitWith (ExitFailure 1)
+       else throw e
+  , Handler $ \ (ScriptReadException _ msg :: ScriptReadException) -> do
+     prog <- getProgName
+     hPutStrLn stderr $ prog <> ": error parsing script file"
+     hPutStrLn stderr msg
+     exitWith (ExitFailure 1)
+  ]
 
 -- | Command line options to parse with 'System.Console.GetOpt'.
 options :: [OptDescr (Config -> IO Config)]
