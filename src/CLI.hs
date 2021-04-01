@@ -111,16 +111,11 @@ loadScriptWithDefault currentScript filename = liftIO $ catches
   (loadScript filename <* putStrLn "Script loaded successfully!\n")
   [ Handler $ \ (e :: IOException) -> if isDoesNotExistError e
      then do
-       hPutStrAnsi red stderr "Loading error: "
-       hPutStrLn stderr "File does not exist"
-       hPutStrLn stderr "Keeping current script...\n"
+       reportLoadScriptError "File does not exist"
        pure currentScript
      else throw e
   , Handler $ \ (ScriptReadException _ msg :: ScriptReadException) -> do
-     hPutStrAnsi red stderr "Loading error: "
-     hPutStrLn stderr "Couldn't parse script file"
-     hPutStrLn stderr msg
-     hPutStrLn stderr "Keeping current script...\n"
+     reportLoadScriptError ("Couldn't parse script file\n" <> msg)
      pure currentScript
   ]
 
@@ -141,7 +136,9 @@ cliInput = liftIO $ do
 cliOutput :: MonadIO m => T.Text -> m ()
 cliOutput out = liftIO $ putStrAnsi yellow "eliza> " >> T.putStrLn (out <> "\n")
 
+------------------
 -- * Messages
+------------------
 
 -- | The CLI header message
 initialMsg :: MonadIO m => m ()
@@ -172,6 +169,15 @@ cmdErrorMsg input = liftIO $ do
   T.putStr "Sorry, non-recognized command: '"
   putStrAnsi  cyan (":" <> input)
   T.putStr "'\n\n"
+
+-- | Print error message to stderr.
+-- Used when there is a problem loading a script
+reportLoadScriptError :: MonadIO m => String -> m ()
+reportLoadScriptError msg = liftIO $ do
+  hPutStrAnsi red stderr "Error: "
+  hPutStrLn       stderr msg
+  hPutStrLn       stderr "Keeping current script...\n"
+
 
 --------------------
 -- * Parse commands
