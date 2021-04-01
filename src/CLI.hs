@@ -21,13 +21,17 @@ import           Control.Concurrent (threadDelay)
 import           Control.Exception
 import           Control.Monad.State
 
+import           System.Environment
+import qualified System.Info as Info
 import           System.IO
 import           System.IO.Error
 
 import           System.Console.ANSI
+import           System.Process
 
-import qualified Data.Text       as T
-import qualified Data.Text.IO    as T
+import qualified Data.Text            as T
+import qualified Data.Text.IO         as T
+import qualified Data.ByteString.Lazy as LB
 
 import qualified Text.Megaparsec as MP
 import qualified Text.Megaparsec.Char as MP
@@ -43,11 +47,12 @@ data Config = Config
 
 
 -- | Which kind of input did the user enter.
-data UserInput = CmdQuit            -- ^ User asked to close program
-               | CmdHelp            -- ^ User asked to see help message
-               | CmdError T.Text    -- ^ Input started with @:@ but is not a recognized command
-               | CmdLoad  FilePath  -- ^ User asked to load script from a file
-               | Input    T.Text    -- ^ Normal user input
+data UserInput = CmdQuit            -- ^ User asked to close program.
+               | CmdHelp            -- ^ User asked to see help message.
+               | CmdEdit            -- ^ User asked to edit the current script.
+               | CmdError T.Text    -- ^ Input started with @:@ but is not a recognized command.
+               | CmdLoad  FilePath  -- ^ User asked to load script from a file.
+               | Input    T.Text    -- ^ Normal user input.
   deriving Show
 
 -- * The Command Line Interface
@@ -90,6 +95,10 @@ evalAndPrint Config {cfgTypingSpeed = wps} = \case
   CmdQuit    -> hoistState pickGoodbye >>= cliOutput
   CmdError e -> cmdErrorMsg e
   CmdHelp    -> helpMsg
+  CmdEdit    -> do
+    currentScript <- gets botScript
+    script <- editScriptWithDefault currentScript
+    modify (\bot -> bot{botScript = script})
   CmdLoad filename -> do
     currentScript <- gets botScript
     script <- loadScriptWithDefault currentScript filename
@@ -103,6 +112,43 @@ evalAndPrint Config {cfgTypingSpeed = wps} = \case
 isExitCommand :: UserInput -> Bool
 isExitCommand CmdQuit = True
 isExitCommand _       = False
+
+
+-- | Open a JSON representation of the script in a text editor
+-- and let the user alter it accordingly.
+-- If the modifications are invalid, keep the original file.
+editScriptWithDefault :: MonadIO m => Script -> m Script
+editScriptWithDefault currentScript = liftIO $ do
+  try (openTempFile tmpdir "script.json")
+  >>= \case
+    Left (_ :: IOException) -> do
+          reportLoadScriptError $ "Failed to create file in temporary directory.\n"
+                                  <> "Do you have a '" <> tmpdir <> "' folder?"
+          pure currentScript
+    Right (path, handler) -> do
+      LB.hPutStr handler (textifyScript currentScript)
+      hClose handler
+      editor >>= \case
+        Nothing -> do
+          reportLoadScriptError "no text editor found."
+          pure currentScript
+        Just ed -> do
+            a <- try (callProcess ed [path])
+            case a of -- :: IO (Either IOException ())
+              Left (_ :: IOException) -> do
+                reportLoadScriptError "couldn't call text editor."
+                pure currentScript
+              Right _ -> loadScriptWithDefault currentScript path
+ where
+  tmpdir = case Info.os of
+    "linux" -> "/tmp"
+    _       -> "."
+  editor = case Info.os of
+    "mingw32" -> pure (Just "notepad")
+    _         -> msum <$> sequence [ lookupEnv "VISUAL"
+                                   , lookupEnv "EDITOR"
+                                   , pure (Just "xdg-open")
+                                   ]
 
 -- | Execute 'Eliza.loadScript' but, in case of an exception,
 -- print an error message do @stderr@ and return a default script.
@@ -155,11 +201,13 @@ initialMsg = liftIO $ do
 helpMsg :: MonadIO m => m ()
 helpMsg = liftIO $ do
   T.putStrLn "Available commands:\n"
-  putStrAnsi cyan "  :help"
+  putStrAnsi cyan "  :edit       "
+  T.putStrLn "\t    edit current script"
+  putStrAnsi cyan "  :help       "
   T.putStrLn "\t    show this message"
-  putStrAnsi cyan "  :load"
+  putStrAnsi cyan "  :load [FILE]"
   T.putStrLn "\t    load new script"
-  putStrAnsi cyan "  :quit"
+  putStrAnsi cyan "  :quit       "
   T.putStrLn "\t    exit Eliza"
   T.putStrLn ""
 
@@ -191,8 +239,9 @@ processInput s = maybe (Input s) id $ MP.parseMaybe commands s
   where
    commands = MP.choice . fmap MP.try $
      [ CmdQuit  <$  (parseCmd ["quit", "q", "bye"] <* MP.many MP.anySingle)
-     , CmdHelp  <$  (parseCmd ["help", "h", "?"] <* MP.many MP.anySingle)
-     , CmdLoad  <$> (parseCmd ["load", "l"] *> MP.some MP.anySingle)
+     , CmdHelp  <$  (parseCmd ["help", "h", "?"]   <* MP.many MP.anySingle)
+     , CmdEdit  <$  (parseCmd ["edit", "e"]        <* MP.many MP.anySingle)
+     , CmdLoad  <$> (parseCmd ["load", "l"]        *> MP.some MP.anySingle)
      , CmdError . T.pack <$> (MP.space *> MP.char ':' *> MP.many MP.anySingle)
      ]
 

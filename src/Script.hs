@@ -19,9 +19,9 @@ import qualified Text.Megaparsec.Char.Lexer as L
 
 import qualified Data.Aeson as Aeson
 import           Data.Aeson ((.:), (.:?), (.!=), (.=))
+import qualified Data.Aeson.Encode.Pretty as Aeson
 
 import Utils
-
 
 
 -- | All the information about how a ELIZA bot should respond.
@@ -160,6 +160,18 @@ textifyRRule = \case
   RNewkey     -> ":newkey"
   RKeyword kw -> "=" <> kw
   RRule    rs -> T.concat (fmap textifyReassemblyRule rs)
+
+-- | Turn a 'Script' into a human-readable JSON..
+textifyScript :: Script -> LB.ByteString
+textifyScript = Aeson.encodePretty' cfg
+ where
+  cfg = Aeson.defConfig
+    { Aeson.confIndent = Aeson.Spaces 2
+    , Aeson.confCompare = Aeson.keyOrder $
+        ["greetings", "goodbyes", "default" ,"reflections", "groups", "keywords"]
+        <> ["keyword", "precedence", "rules", "memory"]
+        <> ["decomposition", "reassembly"]
+    }
 
 ----------------------------
 -- * Deal with JSON
