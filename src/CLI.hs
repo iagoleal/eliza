@@ -52,6 +52,7 @@ data UserInput = CmdQuit            -- ^ User asked to close program.
                | CmdEdit            -- ^ User asked to edit the current script.
                | CmdError T.Text    -- ^ Input started with @:@ but is not a recognized command.
                | CmdLoad  FilePath  -- ^ User asked to load script from a file.
+               | CmdSave  FilePath  -- ^ Save current script to file
                | Input    T.Text    -- ^ Normal user input.
   deriving Show
 
@@ -103,6 +104,9 @@ evalAndPrint Config {cfgTypingSpeed = wps} = \case
     currentScript <- gets botScript
     script <- loadScriptWithDefault currentScript filename
     modify (\bot -> bot{botScript = script})
+  CmdSave filename -> do
+    script <- gets botScript
+    saveScriptFile filename script
   Input t  -> do
     response <- hoistState (answer t)
     disappearingPrint (typingTime wps response) "Eliza is typing..."
@@ -113,6 +117,15 @@ isExitCommand :: UserInput -> Bool
 isExitCommand CmdQuit = True
 isExitCommand _       = False
 
+
+saveScriptFile :: MonadIO m => FilePath -> Script -> m ()
+saveScriptFile filename script = liftIO $ do
+  action <- try (LB.writeFile filename (textifyScript script))
+  case action of
+    Left (e :: IOException) -> do
+      hPutStrLn stderr "Error saving file"
+      hPutStrLn stderr $ (ioeGetErrorString e) <> "\n"
+    Right () -> putStrLn "File saved\n"
 
 -- | Open a JSON representation of the script in a text editor
 -- and let the user alter it accordingly.
@@ -210,7 +223,9 @@ helpMsg = liftIO $ do
   putStrAnsi cyan "  :help       "
   T.putStrLn "\t    show this message"
   putStrAnsi cyan "  :load [FILE]"
-  T.putStrLn "\t    load new script"
+  T.putStrLn "\t    load new script from file"
+  putStrAnsi cyan "  :save [FILE]"
+  T.putStrLn "\t    save current script to file"
   putStrAnsi cyan "  :quit       "
   T.putStrLn "\t    exit Eliza"
   T.putStrLn ""
@@ -246,6 +261,7 @@ processInput s = maybe (Input s) id $ MP.parseMaybe commands s
      , CmdHelp  <$  (parseCmd ["help", "h", "?"]   <* MP.many MP.anySingle)
      , CmdEdit  <$  (parseCmd ["edit", "e"]        <* MP.many MP.anySingle)
      , CmdLoad  <$> (parseCmd ["load", "l"]        *> MP.some MP.anySingle)
+     , CmdSave  <$> (parseCmd ["save", "s"]        *> MP.some MP.anySingle)
      , CmdError . T.pack <$> (MP.space *> MP.char ':' *> MP.many MP.anySingle)
      ]
 
