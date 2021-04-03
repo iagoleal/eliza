@@ -144,10 +144,14 @@ editScriptWithDefault currentScript = liftIO $ do
     "linux" -> "/tmp"
     _       -> "."
   editor = case Info.os of
-    "mingw32" -> pure (Just "notepad")
-    _         -> msum <$> sequence [ lookupEnv "VISUAL"
+    "mingw32" -> pure (Just "start")
+    "linux"   -> msum <$> sequence [ lookupEnv "VISUAL"
                                    , lookupEnv "EDITOR"
                                    , pure (Just "xdg-open")
+                                   ]
+    _         -> msum <$> sequence [ lookupEnv "VISUAL"
+                                   , lookupEnv "EDITOR"
+                                   , pure (Just "nano")
                                    ]
 
 -- | Execute 'Eliza.loadScript' but, in case of an exception,
@@ -190,7 +194,7 @@ cliOutput out = liftIO $ putStrAnsi yellow "eliza> " >> T.putStrLn (out <> "\n")
 initialMsg :: MonadIO m => m ()
 initialMsg = liftIO $ do
   T.putStr "Welcome to "
-  putStrAnsi yellow   "ELIZA"
+  putStrAnsi yellow "ELIZA"
   T.putStr "!\n"
   T.putStr "Type your questions and press 'Enter'\n"
   T.putStr "For more info, enter '"
