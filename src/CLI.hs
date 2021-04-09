@@ -124,7 +124,7 @@ saveScriptFile filename script = liftIO $ do
   case action of
     Left (e :: IOException) -> do
       hPutStrLn stderr "Error saving file"
-      hPutStrLn stderr $ (ioeGetErrorString e) <> "\n"
+      hPutStrLn stderr (ioeGetErrorString e <> "\n")
     Right () -> putStrLn "File saved\n"
 
 -- | Open a JSON representation of the script in a text editor
@@ -172,11 +172,12 @@ editScriptWithDefault currentScript = liftIO $ do
 loadScriptWithDefault :: MonadIO m => Script -> FilePath -> m Script
 loadScriptWithDefault currentScript filename = liftIO $ catches
   (loadScript filename <* putStrLn "Script loaded successfully!\n")
-  [ Handler $ \ (e :: IOException) -> if isDoesNotExistError e
-     then do
-       reportLoadScriptError "File does not exist"
-       pure currentScript
-     else throw e
+  [ Handler $ \ (e :: IOException) ->
+      if isDoesNotExistError e
+       then do
+         reportLoadScriptError "File does not exist"
+         pure currentScript
+       else throw e
   , Handler $ \ (ScriptReadException _ msg :: ScriptReadException) -> do
      reportLoadScriptError ("Couldn't parse script file\n" <> msg)
      pure currentScript

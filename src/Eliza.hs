@@ -98,6 +98,11 @@ memorize t = do
 
 -- ** Find Keywords
 
+-- | Scan an input phrase for keywords.
+-- Return the relevant part of the text chunked into words
+-- and a list of found keywords.
+-- The top of the list is guaranteed to be the top ranking keyword,
+-- but the remainder may be in any order.
 scanKeywords :: T.Text -> State BotState ([T.Text], [Keyword])
 scanKeywords input = case parse phrasesParser "" input of
     Left _  -> pure ([], [])
@@ -119,6 +124,7 @@ scanKwChunk wrds = do
                     else loop ws (stack S.:|> kw) p
   pure (toList $ loop wrds S.Empty (-1))
 
+-- | Apply all reflections on Bot's script to input chunked phrase.
 reflect :: [T.Text] -> State BotState [T.Text]
 reflect ws = do
   script <- gets botScript
@@ -167,6 +173,7 @@ tryDecompRule rule input =
 
 -- * Generate decomposition parsers
 
+-- | Turn a list of 'MatchingRule's into a parser to decompose text.
 parserFromRule :: [MatchingRule] -> State BotState (Parser [T.Text])
 parserFromRule = fmap sequence . unfoldrM coalg
  where
