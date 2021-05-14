@@ -17,7 +17,7 @@ executable eliza
   main-is: Main.hs
   hs-source-dirs:
     app
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wpartial-fields -Wincomplete-uni-patterns -threaded -rtsopts -with-rtsopts=-N
   build-depends: eliza
                , base >= 4.7 && < 5
   default-extensions: OverloadedStrings
